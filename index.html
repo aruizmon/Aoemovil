@@ -2759,11 +2759,14 @@ function refreshCtx(){
     }
     if(def.farm) extra=`<span style="font-size:12px;color:var(--dim)">Trabajadores: ${farmWorkers(b)}/${lvl} — asigna aldeanos a 🍖 comida y vendrán solos.</span>`;
     if(b.id==='cuartel'){
-      extra=Object.keys(UNITS).map(k=>{
-        const u=UNITS[k];
-        const locked=S.age<u.needAge;
-        return `<button data-train="${k}" ${locked||!canPay(u.cost)||totalPop()>=popCap()?'disabled':''}>${u.icon} ${u.name} (${locked?AGES[u.needAge].name:costTxt(u.cost)})</button>`;
-      }).join('');
+      let html = '';
+      for(const k in UNITS){
+        const u = UNITS[k];
+        const locked = S.age < u.needAge;
+        const disabled = locked || !canPay(u.cost) || totalPop() >= popCap();
+        html += `<button data-train="${k}" ${disabled ? 'disabled' : ''}>${u.icon} ${u.name} (${locked ? AGES[u.needAge].name : costTxt(u.cost)})</button>`;
+      }
+      extra = html;
     }
     let upBtn='';
     if(!NO_UPGRADE.has(b.id)){
