@@ -553,7 +553,7 @@ const T_OF_RES = {madera:T_TREE, comida:T_BERRY, piedra:T_STONE, oro:T_GOLD};
 const T_ICON = {[T_TREE]:'🌲', [T_BERRY]:'🍇', [T_STONE]:'🪨', [T_GOLD]:'🪙'};
 const T_NAME = {[T_TREE]:'Bosque', [T_BERRY]:'Bayas', [T_STONE]:'Roca', [T_GOLD]:'Veta de oro'};
 const T_AMT  = {[T_TREE]:150, [T_BERRY]:250, [T_STONE]:5000, [T_GOLD]:5000};
-const CX=13, CY=13;               // centro urbano
+let CX=13, CY=13;               // centro urbano
 
 const idx = (x,y)=>y*W+x;
 const inB = (x,y)=>x>=0&&y>=0&&x<W&&y<H;
@@ -571,13 +571,16 @@ function genMap(){
       y=Math.max(0,Math.min(H-1,y+rnd(3)-1));
     }
   };
+  
+  const mult = W===50 ? 3 : (W===36 ? 2 : 1);
+  
   // lagos
-  for(let L=0;L<3;L++){
+  for(let L=0;L<3*mult;L++){
     let x,y; do{ x=rnd(W); y=rnd(H); }while(dist(x,y)<9);
     blob(x,y,5+rnd(5),(tx,ty)=>{ T[idx(tx,ty)].t=T_WATER; });
   }
   // bosques
-  for(let F=0;F<8;F++){
+  for(let F=0;F<8*mult;F++){
     let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<4||T[idx(x,y)].t!==T_GRASS)&&tries<80);
     blob(x,y,6+rnd(7),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_TREE; c.amt=T_AMT[T_TREE];} });
   }
@@ -587,11 +590,11 @@ function genMap(){
     blob(x,y,4+rnd(3),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_BERRY; c.amt=T_AMT[T_BERRY];} });
   }
   // roca y oro
-  for(let R=0;R<3;R++){
+  for(let R=0;R<3*mult;R++){
     let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<5||T[idx(x,y)].t!==T_GRASS)&&tries<80);
     blob(x,y,3+rnd(2),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_STONE; c.amt=T_AMT[T_STONE];} });
   }
-  for(let G=0;G<2;G++){
+  for(let G=0;G<2*mult;G++){
     let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<6||T[idx(x,y)].t!==T_GRASS)&&tries<80);
     blob(x,y,3,(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_GOLD; c.amt=T_AMT[T_GOLD];} });
   }
@@ -707,7 +710,17 @@ let tiles = null;
 let villagers = [];               // {job, px, py, state, carry, path, pi, target, retry}
 let initialTrees = 0;
 
-function newGame(){
+function newGame(opts){
+  opts = opts || {};
+  W = opts.size === 'enorme' ? 50 : (opts.size === 'grande' ? 36 : 26);
+  H = W;
+  CX = Math.floor(W/2);
+  CY = Math.floor(H/2);
+  
+  if(window.FC) { FC.width=W*TILE_PX; FC.height=H*TILE_PX; }
+  if(window.FC2) { FC2.width=W*TILE_PX; FC2.height=H*TILE_PX; }
+  if(typeof SC !== 'undefined') { SC.width=W*TILE_PX; SC.height=H*TILE_PX; }
+
   tiles = genMap();
   sanitizeMap();
   initialTrees = tiles.filter(c=>c.t===T_TREE).length;
@@ -717,7 +730,11 @@ function newGame(){
     vills:[{job:'comida'},{job:'madera'},{job:null}],
     won:false, dead:false, lastTick:Date.now(), lastEvent:Date.now(), tut:{},
     sound:true, ach:{}, nextRaid:0,
-    mode:'clasico', wave:0, tcHp:600, nextWave:0,
+    mode: opts.mode || 'clasico', 
+    diff: opts.diff || 'normal',
+    biome: opts.biome || 'normal',
+    mapSize: opts.size || 'normal',
+    wave:0, tcHp:600, nextWave:0,
     speed:1, mission:0, treasures:[], seasonT:0,
     solds:[], stance:'home', enemyBuilds:null,
     stats:{g:{comida:0,madera:0,piedra:0,oro:0}, kills:0, trades:0, raids:0, time:0, hunts:0, treasures:0, trained:0},
@@ -767,7 +784,7 @@ function calcMods(){
 function popCap(){ return M.pop; }
 function resCap(){ return Math.floor(M.cap * Math.pow(2,S.age)); }
 function gatherRate(job, farm){
-  const base = farm ? BASE_G.granja : BASE_G[job];
+  const base = (farm ? BASE_G.granja * (S.biome==='desierto'?0.8:1) : BASE_G[job]);
   const seasonMult = job==='comida' ? SEASONS[season()].mult : 1;
   return base * (1+M.mult[job]) * (1+M.global) * seasonMult;
 }
@@ -1254,7 +1271,13 @@ function maybeEvent(now){
   if(now - S.lastEvent < 50000) return;
   if(Math.random()>0.4){ S.lastEvent = now-30000; return; }
   S.lastEvent = now;
-  const pool=EVENTS.filter(e=>S.age>=e.minAge && !(S.mode==='pacifico' && e.type==='bad'));
+  const pool=EVENTS.filter(e=>{
+    if(S.age<e.minAge) return false;
+    if(S.mode==='pacifico' && e.type==='bad') return false;
+    if(S.diff==='facil' && e.type==='bad' && Math.random()<0.5) return false;
+    if(S.diff==='dificil' && e.type==='good' && Math.random()<0.5) return false;
+    return true;
+  });
   if(!pool.length) return;
   const total=pool.reduce((a,e)=>a+e.chance,0);
   let roll=Math.random()*total, ev=pool[0];
@@ -1496,7 +1519,7 @@ function moveUnit(s, tx, ty, dt){
     if(!p) return;
     s.path=p; s.pi=0;
   }
-  stepPath(s, dt, SOLDIER_SPEED*TILE_PX);
+  stepPath(s, dt, SOLDIER_SPEED * (S.biome==='tundra'?0.9:1) * TILE_PX);
 }
 function killSoldier(s){
   soldiers=soldiers.filter(x=>x!==s);
@@ -1579,6 +1602,8 @@ function spawnEnemies(n, hp){
 }
 function startRaid(){
   let n = 1 + S.age;
+  if(S.diff==='facil') n = Math.max(1, n-1);
+  if(S.diff==='dificil') n += 1;
   if(S.mode==='conquista') n += Math.min(4, Math.floor(S.stats.time/300));   // crece con el tiempo
   spawnEnemies(n, 40 + 22*S.age);
   log(`👺 ¡${n} invasores atacan tu ciudad!`, 'bad');
@@ -1677,7 +1702,7 @@ function updateEnemy(e, dt){
         if(!p){ removeEnemy(e,false); return; }
         e.path=p; e.pi=0;
       }
-      if(stepPath(e,dt,ENEMY_SPEED)){ e.state='loot'; e.timer=4; pickLoot(e); }
+      if(stepPath(e,dt,ENEMY_SPEED * (S.biome==='tundra'?0.9:1))){ e.state='loot'; e.timer=4; pickLoot(e); }
       break;
     }
     case 'loot': {
@@ -1701,7 +1726,7 @@ function updateEnemy(e, dt){
         if(!p){ removeEnemy(e,true); return; }
         e.path=p; e.pi=0;
       }
-      if(stepPath(e,dt,ENEMY_SPEED)) removeEnemy(e,true);
+      if(stepPath(e,dt,ENEMY_SPEED * (S.biome==='tundra'?0.9:1))) removeEnemy(e,true);
       break;
     }
   }
@@ -2096,9 +2121,10 @@ function redrawStatic(){
   staticDirty=false;
   waterTiles=[];
   const isLand=(x,y)=>inB(x,y) && tiles[idx(x,y)].t!==T_WATER;
-  // hierba con tonos variados (paleta según la estación)
   const sIdx=season();
-  const grassTones=SEASON_GRASS[sIdx];
+  let grassTones=SEASON_GRASS[sIdx];
+  if(S && S.biome==='desierto') grassTones = ['#d2b48c','#c2a278','#d6ba92','#c8a87f'];
+  if(S && S.biome==='tundra')   grassTones = ['#e0e8f0','#d0dce8','#e8f0f8','#d8e4f0'];
   for(let y=0;y<H;y++) for(let x=0;x<W;x++){
     const px=x*TILE_PX, py=y*TILE_PX;
     sctx.fillStyle=grassTones[((Math.imul(x+7,374761393) ^ Math.imul(y+11,668265263))>>>8)%grassTones.length];
@@ -3075,32 +3101,65 @@ window.addEventListener('resize', resizeCanvas);
 
 /* ---------------- Menú de modos ---------------- */
 let menuOpen=false;
+let menuStateObj={};
+
 function showMenu(){
   menuOpen=true; noSave=true;
-  const recs=getRecs();
-  const cards=document.getElementById('menu-cards');
-  cards.innerHTML='';
-  for(const key in MODES){
-    const m=MODES[key];
-    let rec='';
-    if(key==='reloj' && recs.bestTime) rec=`🏅 Tu récord: ${fmtTime(recs.bestTime)}`;
-    if(key==='oleadas' && recs.bestWave) rec=`🏅 Mejor oleada: ${recs.bestWave}`;
-    const btn=document.createElement('button');
-    btn.className='mode-card';
-    btn.innerHTML=`<span class="mc-icon">${m.icon}</span>
-      <span style="flex:1;min-width:0">
-        <span class="mc-name">${m.name}</span>
-        <div class="mc-desc">${m.desc}</div>
-        ${rec?`<div class="mc-rec">${rec}</div>`:''}
-      </span>`;
-    btn.onclick=()=>pickMode(key);
-    cards.appendChild(btn);
-  }
+  menuStateObj={};
+  renderMenuStep('mode');
   document.getElementById('menu').classList.add('show');
 }
-function pickMode(mode){
-  newGame();
-  S.mode=mode;
+
+function renderMenuStep(step){
+  const cards=document.getElementById('menu-cards');
+  const title=document.querySelector('#menu h1');
+  const sub=document.querySelector('#menu .m-sub');
+  cards.innerHTML='';
+
+  const addBtn = (icon, name, desc, cb, rec='') => {
+    const btn=document.createElement('button');
+    btn.className='mode-card';
+    btn.innerHTML=`<span class="mc-icon">${icon}</span>
+      <span style="flex:1;min-width:0">
+        <span class="mc-name">${name}</span>
+        <div class="mc-desc">${desc}</div>
+        ${rec?`<div class="mc-rec">${rec}</div>`:''}
+      </span>`;
+    btn.onclick = cb;
+    cards.appendChild(btn);
+  };
+
+  if(step==='mode'){
+    title.textContent='Imperios'; sub.textContent='De la Piedra al Imperio';
+    const recs=getRecs();
+    for(const key in MODES){
+      const m=MODES[key];
+      let rec='';
+      if(key==='reloj' && recs.bestTime) rec=`🏅 Tu récord: ${fmtTime(recs.bestTime)}`;
+      if(key==='oleadas' && recs.bestWave) rec=`🏅 Mejor oleada: ${recs.bestWave}`;
+      addBtn(m.icon, m.name, m.desc, ()=>{ menuStateObj.mode=key; renderMenuStep('size'); }, rec);
+    }
+  } else if(step==='size'){
+    title.textContent='Tamaño de Mapa'; sub.textContent='Dimensiones del mundo';
+    addBtn('🗺️', 'Normal', '26x26. Partida estándar y rápida.', ()=> { menuStateObj.size='normal'; renderMenuStep('diff'); });
+    addBtn('🌍', 'Grande', '36x36. Más recursos y distancia.', ()=> { menuStateObj.size='grande'; renderMenuStep('diff'); });
+    addBtn('🌌', 'Enorme', '50x50. Ideal para partidas épicas.', ()=> { menuStateObj.size='enorme'; renderMenuStep('biome'); });
+  } else if(step==='diff'){
+    title.textContent='Dificultad'; sub.textContent='Frecuencia de incursiones y eventos';
+    addBtn('🟢', 'Fácil', 'Menos invasores, más eventos buenos.', ()=> { menuStateObj.diff='facil'; renderMenuStep('biome'); });
+    addBtn('🟡', 'Normal', 'Equilibrio estándar del juego.', ()=> { menuStateObj.diff='normal'; renderMenuStep('biome'); });
+    addBtn('🔴', 'Difícil', 'Incursiones fuertes y clima duro.', ()=> { menuStateObj.diff='dificil'; renderMenuStep('biome'); });
+  } else if(step==='biome'){
+    title.textContent='Bioma'; sub.textContent='Entorno y ecosistema';
+    addBtn('🌲', 'Normal', 'Clima templado. Sin bonificaciones.', ()=> { menuStateObj.biome='normal'; pickMode(); });
+    addBtn('🏜️', 'Desierto', 'Más oro/piedra. Granjas un 20% más lentas.', ()=> { menuStateObj.biome='desierto'; pickMode(); });
+    addBtn('❄️', 'Tundra', 'Abundante madera. Movimiento de tropas un 10% más lento.', ()=> { menuStateObj.biome='tundra'; pickMode(); });
+  }
+}
+
+function pickMode(){
+  const mode = menuStateObj.mode;
+  newGame(menuStateObj);
   if(mode==='oleadas'){ S.wave=0; S.nextWave=Date.now()+150000; S.tcHp=600; }
   if(mode==='conquista') genEnemyVillage();
   menuOpen=false; noSave=false;
