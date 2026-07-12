@@ -1,0 +1,3142 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a140e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Imperios: De la Piedra al Imperio</title>
+<style>
+  :root{
+    --bg:#1a140e; --panel:#2a2018; --panel2:#332619; --border:#4a3826;
+    --gold:#e8c06a; --text:#e8dcc8; --dim:#a89878; --green:#7fc46a; --red:#e07a5f;
+    --display:'Iowan Old Style', Georgia, 'Times New Roman', serif;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%; overflow:hidden; overscroll-behavior:none;}
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-size:15px; display:flex; flex-direction:column;
+    height:100dvh;
+  }
+  button{
+    font-family:inherit; color:var(--text);
+    background:linear-gradient(#3a2c1d,#2c2114);
+    border:1px solid var(--border); border-radius:8px; cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 1px 2px rgba(0,0,0,.3);
+  }
+  button:active{filter:brightness(1.35); box-shadow:inset 0 1px 3px rgba(0,0,0,.4);}
+  button:disabled{opacity:.45; cursor:not-allowed;}
+
+  /* ---------- Barra superior ---------- */
+  #topbar{
+    background:linear-gradient(#241b12,#1f1710); border-bottom:2px solid var(--border);
+    padding:6px 8px 5px; padding-top:max(6px, env(safe-area-inset-top)); z-index:10;
+  }
+  .tb-row1{display:flex; align-items:center; gap:8px; margin-bottom:5px;}
+  #age-lbl{font-family:var(--display); font-weight:700; color:var(--gold); font-size:16px; flex:1; letter-spacing:.4px; white-space:nowrap; overflow:hidden;}
+  #btn-age{padding:6px 10px; font-weight:700; font-size:12px; background:#3d5a2e; border-color:#5a7a44;}
+  #btn-age.locked{background:var(--panel2); border-color:var(--border);}
+  #pop-chip,#mode-chip,#season-chip{font-size:13px; font-weight:600; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:5px 8px; font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .res-bar{display:grid; grid-template-columns:repeat(4,1fr); gap:4px;}
+  .res-chip{background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:3px 4px; text-align:center;}
+  .res-chip .r-top{font-size:13px; font-weight:600; white-space:nowrap; font-variant-numeric:tabular-nums;}
+  .res-chip .r-rate{font-size:10px; color:var(--dim); font-variant-numeric:tabular-nums;}
+  .res-chip .r-rate.pos{color:var(--green);}
+  .res-chip.full .r-top{color:var(--red);}
+  .res-chip.locked{opacity:.4;}
+
+  /* ---------- Mapa ---------- */
+  #map-wrap{flex:1; position:relative; min-height:0; background:#243d1e;}
+  canvas#map{position:absolute; inset:0; width:100%; height:100%; touch-action:none; display:block;}
+  #place-banner{
+    position:absolute; top:8px; left:50%; transform:translateX(-50%);
+    background:#3a2d1e; border:1px solid var(--gold); border-radius:10px;
+    padding:7px 12px; font-size:13px; display:none; align-items:center; gap:10px;
+    max-width:92%; z-index:5;
+  }
+  #place-banner button{padding:4px 10px; font-size:12px;}
+  #minimap{
+    position:absolute; top:8px; left:8px; z-index:5;
+    border:2px solid var(--border); border-radius:8px;
+    background:#0d0a06; opacity:.92; cursor:pointer;
+  }
+  #army-flag{
+    position:absolute; top:8px; left:122px; z-index:5; display:none;
+    background:rgba(30,42,66,.92); border:1px solid #5a7aa4; border-radius:10px;
+    padding:6px 10px; font-size:13px; font-weight:700; color:#c8d8f0; cursor:pointer;
+  }
+  #raid-flag{
+    position:absolute; top:122px; left:8px; z-index:5; display:none;
+    background:rgba(90,25,20,.9); border:1px solid var(--red); border-radius:10px;
+    padding:6px 10px; font-size:13px; font-weight:700; color:#f0c0b0;
+    animation:raidpulse 1s infinite alternate;
+  }
+  @keyframes raidpulse{ from{box-shadow:0 0 4px rgba(224,122,95,.4);} to{box-shadow:0 0 14px rgba(224,122,95,.9);} }
+  @media (prefers-reduced-motion: reduce){ #raid-flag{animation:none;} }
+  #zoom-btns{position:absolute; right:8px; bottom:8px; display:flex; flex-direction:column; gap:6px; z-index:5;}
+  #zoom-btns button{width:40px; height:40px; font-size:20px; font-weight:700; opacity:.85;}
+  #zoom-btns #z-speed{font-size:13px;}
+
+  /* ---------- Panel contextual ---------- */
+  #ctx{
+    position:absolute; left:8px; right:8px; bottom:8px; z-index:6;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:10px 12px; display:none; box-shadow:0 4px 16px rgba(0,0,0,.5);
+  }
+  #ctx .c-head{display:flex; align-items:center; gap:8px; margin-bottom:4px;}
+  #ctx .c-icon{font-size:26px;}
+  #ctx .c-title{font-weight:700; flex:1;}
+  #ctx .c-close{width:30px; height:30px; font-size:14px;}
+  #ctx .c-desc{font-size:12px; color:var(--dim); margin-bottom:8px;}
+  #ctx .c-actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  #ctx .c-actions button{padding:8px 12px; font-size:13px; font-weight:600;}
+  #ctx .assign-ct{font-size:18px; font-weight:700; min-width:30px; text-align:center;}
+  #ctx .c-actions .sq{width:42px; height:38px; font-size:18px; font-weight:700; padding:0;}
+
+  /* ---------- Barra de misión ---------- */
+  #mission-bar{
+    display:none; background:#241b12; border-top:1px solid var(--border);
+    padding:5px 10px; font-size:12px; color:var(--gold);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; z-index:9;
+  }
+
+  /* ---------- Barra inferior ---------- */
+  #bottombar{
+    display:flex; gap:5px; padding:6px 8px; padding-bottom:max(6px, env(safe-area-inset-bottom));
+    background:linear-gradient(#1f1710,#241b12); border-top:2px solid var(--border); z-index:10;
+  }
+  #bottombar button{flex:1; padding:8px 2px; font-size:11.5px; font-weight:600; display:flex; flex-direction:column; align-items:center; gap:2px;}
+  #bottombar button .bi{font-size:19px;}
+  #bottombar button.attn{border-color:var(--gold); box-shadow:0 0 8px rgba(232,192,106,.35);}
+
+  /* ---------- Hojas (menús) ---------- */
+  #sheet-back{position:fixed; inset:0; z-index:30; display:none; background:rgba(0,0,0,.35);}
+  #sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:31; display:none;
+    background:var(--panel); border-top:2px solid var(--border);
+    border-radius:16px 16px 0 0; max-height:72dvh; overflow-y:auto;
+    padding:12px 12px; padding-bottom:max(12px, env(safe-area-inset-bottom));
+    max-width:700px; margin:0 auto;
+  }
+  #sheet h2{font-size:15px; color:var(--gold); font-family:var(--display); text-transform:uppercase; letter-spacing:1.5px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;}
+  #sheet h2 button{font-size:13px; padding:4px 10px;}
+  .item{display:flex; align-items:center; gap:10px; padding:8px 4px; border-bottom:1px solid #3a2d1e;}
+  .item:last-child{border-bottom:none;}
+  .item .i-icon{font-size:24px; width:32px; text-align:center; flex-shrink:0;}
+  .item .i-info{flex:1; min-width:0;}
+  .item .i-name{font-weight:600; font-size:14px;}
+  .item .i-name .i-count{color:var(--gold);}
+  .item .i-desc{font-size:12px; color:var(--dim);}
+  .item .i-cost{font-size:12px; color:var(--dim); margin-top:1px;}
+  .item button{padding:8px 13px; font-weight:700; font-size:13px; flex-shrink:0;}
+  .item.done .i-name{color:var(--green);}
+  .req-item{display:inline-block; margin:2px 10px 2px 0; color:var(--dim); font-size:13px;}
+  .req-item.ok{color:var(--green);}
+  .sheet-note{font-size:12px; color:var(--dim); margin:8px 0;}
+  .assign-row{display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #3a2d1e;}
+  .assign-row .a-label{flex:1; font-size:14px;}
+  .assign-row .a-count{width:34px; text-align:center; font-weight:700; font-size:16px;}
+  .assign-row button{width:42px; height:36px; font-size:18px; font-weight:700;}
+  #log-list p{margin:3px 0; color:var(--dim); font-size:12.5px;}
+  #log-list p.good{color:var(--green);}
+  #log-list p.bad{color:var(--red);}
+  #log-list p.age{color:var(--gold); font-weight:700;}
+  .ach-grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:6px;}
+  .ach{display:flex; gap:8px; align-items:center; border:1px solid var(--border); border-radius:8px; padding:6px 8px; opacity:.45;}
+  .ach.got{opacity:1; border-color:#6a5430; background:#2f2517;}
+  .ach-i{font-size:20px;}
+  .ach-n{font-size:12.5px; font-weight:700;}
+  .ach-d{font-size:11px; color:var(--dim);}
+
+  /* ---------- Toast y victoria ---------- */
+  #toast{
+    position:fixed; top:calc(92px + env(safe-area-inset-top)); left:50%; transform:translateX(-50%);
+    background:#3a2d1e; border:1px solid var(--gold); color:var(--text);
+    padding:9px 14px; border-radius:10px; font-size:13px; z-index:60;
+    max-width:92%; text-align:center; opacity:0; pointer-events:none; transition:opacity .3s;
+  }
+  #toast.show{opacity:1;}
+  #victory{
+    position:fixed; inset:0; background:rgba(10,7,4,.93); z-index:100;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:30px;
+  }
+  #victory.show{display:flex;}
+  #victory .v-icon{font-size:80px;}
+  #victory h1{color:var(--gold); margin:14px 0 10px; font-family:var(--display); letter-spacing:1px;}
+  #victory p{color:var(--dim); margin-bottom:20px; max-width:400px;}
+  #victory button{padding:12px 24px; font-size:15px; font-weight:700;}
+
+  /* ---------- Menú de modos ---------- */
+  #menu{
+    position:fixed; inset:0; background:rgba(14,10,6,.88); z-index:90;
+    display:none; align-items:center; justify-content:center; overflow-y:auto; padding:20px;
+  }
+  #menu.show{display:flex;}
+  .m-inner{max-width:480px; width:100%; text-align:center; margin:auto;}
+  .m-logo{font-size:56px;}
+  #menu h1{font-family:var(--display); color:var(--gold); font-size:34px; letter-spacing:2px; margin:6px 0 2px;}
+  .m-sub{color:var(--dim); margin-bottom:18px; font-size:14px;}
+  .mode-card{
+    display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:12px 14px; margin-bottom:10px;
+  }
+  .mode-card .mc-icon{font-size:30px;}
+  .mode-card .mc-name{font-weight:700; font-size:15px;}
+  .mode-card .mc-desc{font-size:12px; color:var(--dim); margin-top:2px;}
+  .mode-card .mc-rec{font-size:11.5px; color:var(--gold); margin-top:3px;}
+
+  @media (min-width:880px){
+    #bottombar{max-width:700px; margin:0 auto; width:100%; border-left:2px solid var(--border); border-right:2px solid var(--border);}
+    #topbar .res-bar, .tb-row1{max-width:700px; margin-left:auto; margin-right:auto;}
+    .tb-row1{margin-bottom:5px;}
+    #ctx{left:50%; right:auto; transform:translateX(-50%); width:440px;}
+    button:hover:not(:disabled){filter:brightness(1.25);}
+  }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div class="tb-row1">
+    <span id="age-lbl">🪨 Edad de Piedra</span>
+    <span id="season-chip" title="Estación">🌸</span>
+    <span id="mode-chip" style="display:none"></span>
+    <span id="pop-chip">👥 3/5</span>
+    <button id="btn-age">⬆ Edad</button>
+  </div>
+  <div class="res-bar" id="res-bar"></div>
+</div>
+
+<div id="map-wrap">
+  <canvas id="map"></canvas>
+  <div id="place-banner"><span id="place-txt"></span><button id="place-cancel">✕ Cancelar</button></div>
+  <canvas id="minimap" width="104" height="104"></canvas>
+  <div id="raid-flag"></div>
+  <div id="army-flag"></div>
+  <div id="zoom-btns">
+    <button id="z-in">＋</button>
+    <button id="z-out">−</button>
+    <button id="z-home" title="Centrar">🎯</button>
+    <button id="z-speed" title="Velocidad">x1</button>
+  </div>
+  <div id="ctx"></div>
+</div>
+
+<div id="mission-bar"></div>
+
+<div id="bottombar">
+  <button data-sheet="build"><span class="bi">🏗️</span>Construir</button>
+  <button data-sheet="tech"><span class="bi">📜</span>Tecnología</button>
+  <button data-sheet="market"><span class="bi">⚖️</span>Mercado</button>
+  <button data-sheet="pop"><span class="bi">👥</span>Aldeanos</button>
+  <button data-sheet="more"><span class="bi">⚙️</span>Más</button>
+</div>
+
+<div id="sheet-back"></div>
+<div id="sheet"></div>
+<div id="toast"></div>
+
+<div id="victory">
+  <div class="v-icon">🏆</div>
+  <h1>¡Victoria!</h1>
+  <p id="victory-txt"></p>
+  <button id="btn-again">Jugar de nuevo</button>
+</div>
+
+<div id="menu">
+  <div class="m-inner">
+    <div class="m-logo">🏛️</div>
+    <h1>Imperios</h1>
+    <p class="m-sub">De la Piedra al Imperio</p>
+    <div id="menu-cards"></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   IMPERIOS (v2 mapa) — construye tu ciudad sobre un mapa real
+   ============================================================ */
+
+/* ---------------- Datos ---------------- */
+const RES = ['comida','madera','piedra','oro'];
+const RES_META = {
+  comida:{icon:'🍖', name:'Comida'},
+  madera:{icon:'🪵', name:'Madera'},
+  piedra:{icon:'🪨', name:'Piedra'},
+  oro:{icon:'🪙', name:'Oro'},
+};
+// ritmo base de recolección en el nodo (por aldeano y segundo)
+const BASE_G = {comida:1.2, madera:1.0, piedra:0.8, oro:0.7, granja:1.0};
+const CARRY_CAP = 10;
+const WALK_SPEED = 3.4;           // casillas por segundo
+
+const AGES = [
+  {name:'Edad de Piedra',  icon:'🪨', tc:'⛺'},
+  {name:'Edad de Bronce',  icon:'🏺', tc:'🛖'},
+  {name:'Edad de Hierro',  icon:'⚔️', tc:'🏠'},
+  {name:'Edad Clásica',    icon:'🏛️', tc:'🏛️'},
+  {name:'Edad Media',      icon:'🏰', tc:'🏰'},
+  {name:'Edad Imperial',   icon:'👑', tc:'🏰'},
+];
+const AGE_REQ = [
+  null,
+  {cost:{comida:300, madera:200, piedra:100},              builds:{choza:2, granja:1}},
+  {cost:{comida:800, madera:600, piedra:400, oro:150},     builds:{aserradero:1, cantera:1, mercado:1}},
+  {cost:{comida:2000, madera:1500, piedra:1000, oro:500},  builds:{muralla:1, templo:1}},
+  {cost:{comida:5000, madera:4000, piedra:3000, oro:1500}, builds:{biblioteca:1, acueducto:1}},
+  {cost:{comida:12000, madera:10000, piedra:8000, oro:5000},builds:{universidad:1, castillo:1}},
+];
+
+/* Edificios: place = regla de colocación; drop = recursos que acepta como punto de descarga */
+const BUILDINGS = [
+  {id:'ayunta',     age:0, icon:'⛺', name:'Centro urbano', desc:'Corazón de tu ciudad. Acepta todos los recursos y dispara a los invasores.', cost:{}, mods:{pop:5, cap:250}, attack:{range:4.5, dps:12}, drop:RES, max:1, noBuild:true},
+  {id:'choza',      age:0, icon:'🛖', name:'Choza',        desc:'+2 población máxima', cost:{madera:20}, mods:{pop:2}, place:'grass'},
+  {id:'granja',     age:0, icon:'🌾', name:'Granja',       desc:'Fuente de comida infinita (1 aldeano)', cost:{madera:50}, mods:{}, place:'grass', farm:true},
+  {id:'almacen',    age:0, icon:'🏚️', name:'Almacén',      desc:'+250 almacenamiento · descarga de todo', cost:{madera:30, piedra:10}, mods:{cap:250}, drop:RES, place:'grass'},
+  {id:'hoguera',    age:0, icon:'🔥', name:'Hoguera',      desc:'+10% comida', cost:{madera:15, piedra:5}, mods:{mult:{comida:.10}}, place:'grass'},
+  {id:'aserradero', age:1, icon:'🪚', name:'Aserradero',   desc:'+15% madera · descarga de madera', cost:{madera:80, piedra:40}, mods:{mult:{madera:.15}}, drop:['madera'], place:'adj_tree', placeTxt:'junto a un 🌲 bosque'},
+  {id:'cantera',    age:1, icon:'⛏️', name:'Cantera',      desc:'+15% piedra · descarga de piedra', cost:{madera:100, piedra:30}, mods:{mult:{piedra:.15}}, drop:['piedra'], place:'adj_stone', placeTxt:'junto a 🪨 roca'},
+  {id:'mina',       age:1, icon:'💰', name:'Mina de oro',  desc:'+15% oro · descarga de oro', cost:{madera:120, piedra:80}, mods:{mult:{oro:.15}}, drop:['oro'], place:'adj_gold', placeTxt:'junto a una 🪙 veta de oro'},
+  {id:'mercado',    age:1, icon:'⚖️', name:'Mercado',      desc:'Permite comerciar · +10% oro', cost:{madera:150, piedra:50}, mods:{mult:{oro:.10}, trade:true}, place:'grass'},
+  {id:'torre',      age:1, icon:'🏹', name:'Torre de vigilancia', desc:'Dispara a los invasores (alcance 4,5 casillas)', cost:{madera:60, piedra:50}, mods:{}, attack:{range:4.5, dps:12}, place:'grass'},
+  {id:'cuartel',    age:1, icon:'⚔️', name:'Cuartel',      desc:'Entrena soldados para defender la ciudad y atacar', cost:{madera:120, piedra:60}, mods:{}, place:'grass'},
+  {id:'muralla',    age:2, icon:'🧱', name:'Muralla',      desc:'Protege de saqueos (-75% pérdidas)', cost:{piedra:300, madera:100}, mods:{protect:.75}, place:'grass', max:1},
+  {id:'templo',     age:2, icon:'⛩️', name:'Templo',       desc:'+8% a toda la producción', cost:{piedra:200, oro:100}, mods:{global:.08}, place:'grass'},
+  {id:'herreria',   age:2, icon:'🔨', name:'Herrería',     desc:'+15% madera y piedra', cost:{madera:150, piedra:100, oro:50}, mods:{mult:{madera:.15, piedra:.15}}, place:'grass'},
+  {id:'biblioteca', age:3, icon:'📚', name:'Biblioteca',   desc:'+10% global · tecnología -15% coste', cost:{madera:300, piedra:200, oro:150}, mods:{global:.10, techDisc:.15}, place:'grass', max:1},
+  {id:'acueducto',  age:3, icon:'🌉', name:'Acueducto',    desc:'+25% comida', cost:{piedra:400, oro:200}, mods:{mult:{comida:.25}}, place:'grass'},
+  {id:'universidad',age:4, icon:'🎓', name:'Universidad',  desc:'+20% a toda la producción', cost:{madera:800, piedra:600, oro:400}, mods:{global:.20}, place:'grass', max:1},
+  {id:'castillo',   age:4, icon:'🏯', name:'Castillo',     desc:'+5 población · protección total · dispara (alcance 6)', cost:{piedra:1500, oro:800}, mods:{pop:5, protect:1}, attack:{range:6, dps:35}, place:'grass', max:1},
+  {id:'maravilla',  age:5, icon:'🗼', name:'Maravilla',    desc:'¡Constrúyela para ganar la partida!', cost:{comida:5000, madera:8000, piedra:10000, oro:6000}, mods:{win:true}, place:'grass', max:1},
+];
+const BLD = Object.fromEntries(BUILDINGS.map(b=>[b.id,b]));
+
+const TECHS = [
+  {id:'silex',     age:0, icon:'🔪', name:'Herramientas de sílex', desc:'+25% recolección de todo', cost:{comida:30, madera:20},  mods:{global:.25}},
+  {id:'cestas',    age:0, icon:'🧺', name:'Cestas de mimbre',      desc:'+5 de carga por aldeano',  cost:{comida:40, madera:30},  mods:{carry:5}},
+  {id:'lanzas',    age:0, icon:'🗡️', name:'Lanzas',                desc:'-50% pérdidas por ataques',cost:{comida:50, madera:40},  mods:{protect:.5}},
+  {id:'arado',     age:1, icon:'🐂', name:'Arado de bronce',       desc:'+50% comida',              cost:{comida:150, madera:100},mods:{mult:{comida:.5}}},
+  {id:'hachaB',    age:1, icon:'🪓', name:'Hacha de bronce',       desc:'+40% madera',              cost:{comida:100, madera:80, piedra:50}, mods:{mult:{madera:.4}}},
+  {id:'picoB',     age:1, icon:'⚒️', name:'Pico de bronce',        desc:'+40% piedra',              cost:{comida:100, madera:50, piedra:80}, mods:{mult:{piedra:.4}}},
+  {id:'ruedas',    age:1, icon:'🛞', name:'La rueda',              desc:'Aldeanos +30% velocidad',  cost:{comida:200, madera:120},mods:{speed:.3}},
+  {id:'escritura', age:1, icon:'📝', name:'Escritura',             desc:'+10% a toda la producción',cost:{comida:200, oro:50},    mods:{global:.10}},
+  {id:'hierroH',   age:2, icon:'🛠️', name:'Herramientas de hierro',desc:'+50% madera y piedra',     cost:{comida:400, madera:300, piedra:200, oro:100}, mods:{mult:{madera:.5, piedra:.5}}},
+  {id:'moneda',    age:2, icon:'🪙', name:'Acuñación de moneda',   desc:'+50% oro',                 cost:{comida:300, oro:200},   mods:{mult:{oro:.5}}},
+  {id:'rotacion',  age:2, icon:'🔄', name:'Rotación de cultivos',  desc:'+50% comida',              cost:{comida:500, madera:300},mods:{mult:{comida:.5}}},
+  {id:'carretas',  age:2, icon:'🛒', name:'Carretas',              desc:'+10 de carga por aldeano', cost:{madera:400, oro:100},   mods:{carry:10}},
+  {id:'caminos',   age:3, icon:'🛤️', name:'Calzadas',              desc:'+15% producción · +20% velocidad', cost:{madera:800, piedra:600, oro:300}, mods:{global:.15, speed:.2}},
+  {id:'construccion',age:3,icon:'📐', name:'Ingeniería civil',     desc:'Edificios -15% de coste',  cost:{comida:1000, oro:500},  mods:{buildDisc:.15}},
+  {id:'molino',    age:4, icon:'🌬️', name:'Molino de viento',      desc:'+75% comida',              cost:{madera:1500, piedra:800}, mods:{mult:{comida:.75}}},
+  {id:'grua',      age:4, icon:'🏗️', name:'Grúa medieval',         desc:'Edificios -20% de coste',  cost:{madera:2000, oro:1000}, mods:{buildDisc:.20}},
+  {id:'imprenta',  age:4, icon:'📖', name:'Imprenta',              desc:'+25% a toda la producción',cost:{madera:2500, oro:1500}, mods:{global:.25}},
+  {id:'banca',     age:5, icon:'🏦', name:'Banca',                 desc:'+100% oro',                cost:{comida:3000, oro:2000}, mods:{mult:{oro:1}}},
+  {id:'ingenieria',age:5, icon:'⚙️', name:'Ingeniería avanzada',   desc:'+50% madera y piedra',     cost:{madera:4000, piedra:3000, oro:2000}, mods:{mult:{madera:.5, piedra:.5}}},
+];
+
+const EVENTS = [
+  {minAge:0, chance:1,   type:'bad',  msg:'⛈️ Una tormenta destroza parte de tu leña.',  res:'madera', pct:.10},
+  {minAge:1, chance:1,   type:'bad',  msg:'🏴 ¡Saqueadores asaltan la ciudad!',          res:'oro',    pct:.15},
+  {minAge:0, chance:1.2, type:'good', msg:'🌻 ¡Cosecha abundante!',                      res:'comida'},
+  {minAge:0, chance:1,   type:'good', msg:'🌲 Tus leñadores encuentran madera caída.',   res:'madera'},
+  {minAge:1, chance:1,   type:'good', msg:'✨ ¡Tus mineros encuentran una veta rica!',   res:'oro'},
+  {minAge:0, chance:.8,  type:'pop',  msg:'🚶 Unos nómadas se unen a tu poblado.'},
+  {minAge:1, chance:1,   type:'good', msg:'🐫 Un mercader ambulante deja regalos.',      res:'oro'},
+];
+
+/* ---------------- Logros ---------------- */
+const ACHS = [
+  {id:'choza1',   icon:'🛖', name:'Un techo',            desc:'Construye tu primera choza',        test:()=>buildCount('choza')>=1},
+  {id:'pueblo10', icon:'👥', name:'Poblado',             desc:'Alcanza 10 aldeanos',               test:()=>villagers.length>=10},
+  {id:'ciudad20', icon:'🏘️', name:'Ciudad',              desc:'Alcanza 20 aldeanos',               test:()=>villagers.length>=20},
+  {id:'made1k',   icon:'🪵', name:'Leñador',             desc:'Recolecta 1.000 de madera en total',test:()=>S.stats.g.madera>=1000},
+  {id:'made10k',  icon:'🪚', name:'Industria maderera',  desc:'Recolecta 10.000 de madera en total',test:()=>S.stats.g.madera>=10000},
+  {id:'granjas3', icon:'🌾', name:'Cosechas propias',    desc:'Ten 3 granjas a la vez',            test:()=>buildCount('granja')>=3},
+  {id:'bronce',   icon:'🏺', name:'Broncíneo',           desc:'Alcanza la Edad de Bronce',         test:()=>S.age>=1},
+  {id:'hierro',   icon:'⚔️', name:'Forjado en hierro',   desc:'Alcanza la Edad de Hierro',         test:()=>S.age>=2},
+  {id:'clasica',  icon:'🏛️', name:'Civilizado',          desc:'Alcanza la Edad Clásica',           test:()=>S.age>=3},
+  {id:'media',    icon:'🏰', name:'Señor feudal',        desc:'Alcanza la Edad Media',             test:()=>S.age>=4},
+  {id:'imperial', icon:'👑', name:'Emperador',           desc:'Alcanza la Edad Imperial',          test:()=>S.age>=5},
+  {id:'defensor', icon:'🏹', name:'Defensor',            desc:'Elimina 10 invasores',              test:()=>S.stats.kills>=10},
+  {id:'general',  icon:'🛡️', name:'General',             desc:'Elimina 50 invasores',              test:()=>S.stats.kills>=50},
+  {id:'mercader', icon:'⚖️', name:'Mercader',            desc:'Haz 10 intercambios en el mercado', test:()=>S.stats.trades>=10},
+  {id:'sabio',    icon:'📜', name:'Sabio',               desc:'Investiga 10 tecnologías',          test:()=>Object.keys(S.techs).length>=10},
+  {id:'leyenda',  icon:'🏆', name:'Leyenda',             desc:'Construye la Maravilla y gana',     test:()=>S.won},
+  {id:'maestro',  icon:'⭐', name:'Maestro de obras',    desc:'Mejora un edificio a nivel 3',      test:()=>S.builds.some(b=>(b.lvl||1)>=3)},
+  {id:'oleada10', icon:'🌊', name:'Rompeolas',           desc:'Alcanza la oleada 10 en Supervivencia', test:()=>S.mode==='oleadas'&&S.wave>=10},
+  {id:'explorador',icon:'🔭', name:'Explorador',         desc:'Descubre el 90% del mapa',          test:()=>fog && fogCount>=Math.floor(W*H*0.9)},
+  {id:'tesorero', icon:'💎', name:'Tesorero',            desc:'Encuentra 5 tesoros ocultos',       test:()=>(S.stats.treasures||0)>=5},
+  {id:'cazador',  icon:'🦌', name:'Cazador',             desc:'Caza 10 ciervos',                   test:()=>(S.stats.hunts||0)>=10},
+  {id:'recluta',  icon:'⚔️', name:'A las armas',         desc:'Entrena tu primer soldado',         test:()=>(S.stats.trained||0)>=1},
+  {id:'conquistador', icon:'🗡️', name:'Conquistador',    desc:'Arrasa el poblado rival en Conquista', test:()=>S.mode==='conquista'&&S.won},
+];
+function checkAchs(){
+  for(const a of ACHS){
+    if(S.ach[a.id]) continue;
+    let ok=false;
+    try{ ok=a.test(); }catch(e){}
+    if(ok){
+      S.ach[a.id]=true;
+      log(`🏆 Logro desbloqueado: ${a.icon} ${a.name}`, 'good');
+      toast(`🏆 Logro: ${a.icon} ${a.name}`);
+      SFX.ach();
+    }
+  }
+}
+
+/* ---------------- Estaciones ---------------- */
+const SEASONS=[
+  {n:'Primavera', i:'🌸', mult:1.10, tint:'rgba(190,255,190,0.04)'},
+  {n:'Verano',    i:'☀️', mult:1.15, tint:'rgba(255,220,130,0.06)'},
+  {n:'Otoño',     i:'🍂', mult:1.00, tint:'rgba(205,140,45,0.09)'},
+  {n:'Invierno',  i:'❄️', mult:0.80, tint:'rgba(210,232,255,0.16)'},
+];
+const SEASON_GRASS=[
+  ['#4a6b35','#466833','#436330','#4d6e38'],
+  ['#577139','#527036','#4e6a33','#5b753d'],
+  ['#5d6b38','#66703c','#586434','#6b7440'],
+  ['#77816e','#707a67','#6b7563','#7e8875'],
+];
+function season(){ return Math.floor((S.seasonT||0)/180)%4; }
+let prevSeason=-1;
+function tickSeason(dt){
+  S.seasonT=(S.seasonT||0)+dt;
+  const s=season();
+  if(prevSeason!==-1 && s!==prevSeason){
+    const sd=SEASONS[s];
+    staticDirty=true;
+    toast(`${sd.i} Llega ${sd.n.toLowerCase()==='otoño'?'el':'la'} ${sd.n.toLowerCase()} — comida ${sd.mult>1?'+':''}${Math.round((sd.mult-1)*100)}%`);
+    log(`${sd.i} Cambio de estación: ${sd.n}.`);
+  }
+  prevSeason=s;
+}
+
+/* ---------------- Misiones guiadas ---------------- */
+const MISSIONS=[
+  {icon:'🍖', txt:'Envía un aldeano a recoger comida',        test:()=>assignCount('comida')>=1,               rw:{comida:20}},
+  {icon:'🪵', txt:'Envía un aldeano a talar madera',          test:()=>assignCount('madera')>=1,               rw:{comida:20}},
+  {icon:'🛖', txt:'Construye una choza',                      test:()=>buildCount('choza')>=1,                 rw:{madera:30}},
+  {icon:'👶', txt:'Recluta un aldeano nuevo',                 test:()=>villagers.length>=4,                    rw:{comida:40}},
+  {icon:'🔭', txt:'Explora el mapa (150 casillas descubiertas)', test:()=>fogCount>=150,                       rw:{comida:50, madera:50}},
+  {icon:'🌾', txt:'Construye una granja',                     test:()=>buildCount('granja')>=1,                rw:{madera:50}},
+  {icon:'🏹', txt:'Caza un ciervo (tócalo y pulsa Cazar)',    test:()=>(S.stats.hunts||0)>=1,                  rw:{comida:60}},
+  {icon:'🏺', txt:'Avanza a la Edad de Bronce',               test:()=>S.age>=1,                               rw:{comida:100, madera:100, piedra:50}},
+  {icon:'🏹', txt:'Construye una torre de vigilancia',        test:()=>buildCount('torre')>=1,                 rw:{oro:40}},
+  {icon:'⭐', txt:'Mejora un edificio a nivel 2',             test:()=>S.builds.some(b=>(b.lvl||1)>=2),        rw:{oro:60}},
+  {icon:'⚖️', txt:'Comercia en el mercado',                   test:()=>(S.stats.trades||0)>=1,                 rw:{oro:80}},
+  {icon:'⚔️', txt:'Avanza a la Edad de Hierro',               test:()=>S.age>=2,                               rw:{comida:200, madera:200, piedra:100, oro:100}},
+  {icon:'👥', txt:'Alcanza 8 aldeanos',                       test:()=>villagers.length>=8,                    rw:{comida:150}},
+  {icon:'✨', txt:'Encuentra 3 tesoros ocultos',              test:()=>(S.stats.treasures||0)>=3,              rw:{oro:120}},
+  {icon:'🧱', txt:'Construye una muralla',                    test:()=>buildCount('muralla')>=1,               rw:{piedra:150}},
+  {icon:'⛩️', txt:'Construye un templo',                      test:()=>buildCount('templo')>=1,                rw:{oro:100}},
+  {icon:'🏛️', txt:'Avanza a la Edad Clásica',                 test:()=>S.age>=3,                               rw:{comida:400, madera:400, piedra:200, oro:200}},
+  {icon:'⭐', txt:'Mejora un edificio a nivel 3',             test:()=>S.builds.some(b=>(b.lvl||1)>=3),        rw:{oro:200}},
+  {icon:'👥', txt:'Alcanza 14 aldeanos',                      test:()=>villagers.length>=14,                   rw:{comida:400}},
+  {icon:'🏰', txt:'Avanza a la Edad Media',                   test:()=>S.age>=4,                               rw:{comida:800, madera:800, piedra:400, oro:400}},
+  {icon:'🏯', txt:'Construye un castillo',                    test:()=>buildCount('castillo')>=1,              rw:{oro:500}},
+  {icon:'⚔️', txt:'Elimina 25 invasores en total',            test:()=>(S.stats.kills||0)>=25,                 rw:{oro:400}},
+  {icon:'👑', txt:'Avanza a la Edad Imperial',                test:()=>S.age>=5,                               rw:{comida:1500, madera:1500, piedra:1000, oro:800}},
+  {icon:'🗼', txt:'Construye la Maravilla y pasa a la historia', test:()=>S.won,                               rw:{oro:1}},
+];
+function checkMission(){
+  if(!S || S.mission>=MISSIONS.length) return;
+  const m=MISSIONS[S.mission];
+  let ok=false;
+  try{ ok=m.test(); }catch(e){}
+  if(ok){
+    const cap=resCap();
+    for(const r in m.rw) S.res[r]=Math.min(cap, S.res[r]+m.rw[r]);
+    S.mission++;
+    SFX.ach();
+    toast(`📜 ¡Misión cumplida! Recompensa: ${costTxt(m.rw)}`);
+    log(`📜 Misión cumplida: ${m.txt}.`, 'good');
+    updateMissionBar();
+  }
+}
+function updateMissionBar(){
+  const el=document.getElementById('mission-bar');
+  if(!S || S.mission>=MISSIONS.length){ el.style.display='none'; return; }
+  const m=MISSIONS[S.mission];
+  el.style.display='block';
+  el.textContent=`📜 Misión ${S.mission+1}/${MISSIONS.length}: ${m.icon} ${m.txt} · premio: ${costTxt(m.rw)}`;
+}
+
+/* ---------------- Modos de juego y récords ---------------- */
+const MODES={
+  clasico: {icon:'🏛️', name:'Clásico',      desc:'Avanza por las edades, defiende tu ciudad y construye la Maravilla.'},
+  pacifico:{icon:'🕊️', name:'Pacífico',     desc:'Sin invasores ni desgracias. Construye y prospera a tu ritmo.'},
+  reloj:   {icon:'⏱️', name:'Contrarreloj', desc:'Construye la Maravilla lo más rápido posible. ¿Batirás tu récord?'},
+  oleadas: {icon:'🌊', name:'Supervivencia',desc:'Oleadas de invasores cada vez mayores atacan tu centro urbano. Resiste.'},
+  conquista:{icon:'🗡️', name:'Conquista',  desc:'Un poblado rival se oculta en la niebla. Entrena un ejército y arrasa su centro urbano.'},
+};
+/* Unidades militares (se entrenan en el cuartel) */
+const UNITS={
+  mili:{name:'Miliciano', icon:'🗡️', cost:{comida:60, madera:20}, hp:60, dps:9,  range:0.8, needAge:1},
+  arq: {name:'Arquero',   icon:'🏹', cost:{comida:40, madera:40, oro:15}, hp:40, dps:11, range:3.0, needAge:2},
+};
+const SOLDIER_SPEED=3.0;
+const REC_KEY='imperios-records';
+function getRecs(){ try{ return JSON.parse(localStorage.getItem(REC_KEY))||{}; }catch(e){ return {}; } }
+function setRec(k,v){ const r=getRecs(); r[k]=v; try{ localStorage.setItem(REC_KEY, JSON.stringify(r)); }catch(e){} }
+function fmtTime(sec){
+  sec=Math.floor(sec);
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  return (h? h+':' : '') + String(m).padStart(h?2:1,'0') + ':' + String(s).padStart(2,'0');
+}
+
+/* ---------------- Sonido (WebAudio sintetizado) ---------------- */
+let AC=null;
+function ac(){
+  if(!AC){
+    const C=window.AudioContext||window.webkitAudioContext;
+    if(C) AC=new C();
+  }
+  if(AC && AC.state==='suspended') AC.resume();
+  return AC;
+}
+function tone(f, dur, type='square', vol=.12, slideTo=null, delay=0){
+  if(!S || !S.sound || !AC) return;
+  try{
+    const t0=AC.currentTime+delay;
+    const o=AC.createOscillator(), g=AC.createGain();
+    o.type=type;
+    o.frequency.setValueAtTime(f, t0);
+    if(slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(1,slideTo), t0+dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(.0008, t0+dur);
+    o.connect(g); g.connect(AC.destination);
+    o.start(t0); o.stop(t0+dur+.03);
+  }catch(e){}
+}
+function noiseSnd(dur, vol=.12, delay=0){
+  if(!S || !S.sound || !AC) return;
+  try{
+    const t0=AC.currentTime+delay;
+    const len=Math.max(1,Math.floor(AC.sampleRate*dur));
+    const buf=AC.createBuffer(1,len,AC.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len);
+    const src=AC.createBufferSource(); src.buffer=buf;
+    const g=AC.createGain(); g.gain.value=vol;
+    const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.value=900;
+    src.connect(f); f.connect(g); g.connect(AC.destination);
+    src.start(t0);
+  }catch(e){}
+}
+const SFX={
+  build:   ()=>{ noiseSnd(.14,.16); tone(120,.16,'triangle',.16); },
+  deposit: ()=>tone(880,.07,'sine',.05,660),
+  research:()=>{ tone(660,.12,'sine',.1); tone(990,.18,'sine',.1,null,.1); },
+  age:     ()=>{ [523,659,784,1047].forEach((f,i)=>tone(f,.28,'triangle',.15,null,i*.14)); },
+  horn:    ()=>{ tone(185,.7,'sawtooth',.16,140); tone(185,.7,'sawtooth',.11,140,.75); },
+  pew:     ()=>tone(1300,.07,'square',.035,320),
+  die:     ()=>{ noiseSnd(.18,.14); tone(200,.15,'sawtooth',.08,80); },
+  bad:     ()=>tone(220,.3,'sawtooth',.1,110),
+  good:    ()=>{ tone(784,.1,'sine',.09); tone(1175,.16,'sine',.09,null,.09); },
+  win:     ()=>{ [523,659,784,1047,1319].forEach((f,i)=>tone(f,.42,'triangle',.16,null,i*.17)); },
+  ach:     ()=>{ tone(1047,.1,'sine',.12); tone(1319,.22,'sine',.12,null,.1); },
+};
+let lastDepSnd=0, lastPewSnd=0;
+document.addEventListener('pointerdown', ()=>{ try{ ac(); }catch(e){} }, true);
+
+/* ---------------- Mapa ---------------- */
+let W=26, H=26;
+const TILE_PX=48;
+const T_GRASS=0, T_WATER=1, T_TREE=2, T_BERRY=3, T_STONE=4, T_GOLD=5;
+const RES_OF_T = {[T_TREE]:'madera', [T_BERRY]:'comida', [T_STONE]:'piedra', [T_GOLD]:'oro'};
+const T_OF_RES = {madera:T_TREE, comida:T_BERRY, piedra:T_STONE, oro:T_GOLD};
+const T_ICON = {[T_TREE]:'🌲', [T_BERRY]:'🍇', [T_STONE]:'🪨', [T_GOLD]:'🪙'};
+const T_NAME = {[T_TREE]:'Bosque', [T_BERRY]:'Bayas', [T_STONE]:'Roca', [T_GOLD]:'Veta de oro'};
+const T_AMT  = {[T_TREE]:150, [T_BERRY]:250, [T_STONE]:5000, [T_GOLD]:5000};
+const CX=13, CY=13;               // centro urbano
+
+const idx = (x,y)=>y*W+x;
+const inB = (x,y)=>x>=0&&y>=0&&x<W&&y<H;
+const rnd = n=>Math.floor(Math.random()*n);
+
+function genMap(){
+  const T = [];
+  for(let i=0;i<W*H;i++) T.push({t:T_GRASS, amt:0});
+  const dist=(x,y)=>Math.hypot(x-CX,y-CY);
+  const blob=(x0,y0,n,fn)=>{
+    let x=x0,y=y0; const seen=new Set();
+    for(let i=0;i<n*4 && seen.size<n;i++){
+      if(inB(x,y) && !seen.has(x+','+y)){ seen.add(x+','+y); fn(x,y); }
+      x=Math.max(0,Math.min(W-1,x+rnd(3)-1));
+      y=Math.max(0,Math.min(H-1,y+rnd(3)-1));
+    }
+  };
+  // lagos
+  for(let L=0;L<3;L++){
+    let x,y; do{ x=rnd(W); y=rnd(H); }while(dist(x,y)<9);
+    blob(x,y,5+rnd(5),(tx,ty)=>{ T[idx(tx,ty)].t=T_WATER; });
+  }
+  // bosques
+  for(let F=0;F<8;F++){
+    let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<4||T[idx(x,y)].t!==T_GRASS)&&tries<80);
+    blob(x,y,6+rnd(7),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_TREE; c.amt=T_AMT[T_TREE];} });
+  }
+  // bayas cerca del centro
+  for(let B=0;B<2;B++){
+    let x,y,tries=0; do{ x=CX+rnd(9)-4; y=CY+rnd(9)-4; tries++; }while((dist(x,y)<2.5||!inB(x,y)||T[idx(x,y)].t!==T_GRASS)&&tries<80);
+    blob(x,y,4+rnd(3),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_BERRY; c.amt=T_AMT[T_BERRY];} });
+  }
+  // roca y oro
+  for(let R=0;R<3;R++){
+    let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<5||T[idx(x,y)].t!==T_GRASS)&&tries<80);
+    blob(x,y,3+rnd(2),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_STONE; c.amt=T_AMT[T_STONE];} });
+  }
+  for(let G=0;G<2;G++){
+    let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<6||T[idx(x,y)].t!==T_GRASS)&&tries<80);
+    blob(x,y,3,(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_GOLD; c.amt=T_AMT[T_GOLD];} });
+  }
+  // despeja el centro
+  for(let y=CY-1;y<=CY+1;y++) for(let x=CX-1;x<=CX+1;x++){ T[idx(x,y)].t=T_GRASS; T[idx(x,y)].amt=0; }
+  return T;
+}
+// elimina recursos aislados por agua (inalcanzables desde el centro)
+function sanitizeMap(){
+  const seen=new Uint8Array(W*H);
+  const q=[idx(CX,CY)]; seen[idx(CX,CY)]=1;
+  const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  while(q.length){
+    const cur=q.pop(), cx=cur%W, cy=(cur-cx)/W;
+    for(const [dx,dy] of DIRS){
+      const nx=cx+dx, ny=cy+dy;
+      if(!inB(nx,ny)) continue;
+      const ni=idx(nx,ny);
+      if(seen[ni] || tiles[ni].t===T_WATER) continue;
+      seen[ni]=1; q.push(ni);
+    }
+  }
+  for(let i=0;i<W*H;i++){
+    if(!seen[i] && RES_OF_T[tiles[i].t]){ tiles[i].t=T_GRASS; tiles[i].amt=0; }
+  }
+}
+
+/* ---------------- Niebla de guerra y tesoros ---------------- */
+let fog=null, fogCount=0, fogDirty=true;
+const FC=document.createElement('canvas');
+FC.width=W*TILE_PX; FC.height=H*TILE_PX;
+const fctx=FC.getContext('2d');
+function initFog(all){
+  fog=new Uint8Array(W*H);
+  fogCount=0;
+  if(all){ fog.fill(1); fogCount=W*H; }
+  fogDirty=true;
+}
+function reveal(cx,cy,r){
+  if(!fog) return;
+  const r2=r*r;
+  let changed=false;
+  for(let y=Math.max(0,Math.floor(cy-r)); y<=Math.min(H-1,Math.ceil(cy+r)); y++){
+    for(let x=Math.max(0,Math.floor(cx-r)); x<=Math.min(W-1,Math.ceil(cx+r)); x++){
+      if(fog[idx(x,y)]) continue;
+      const dx=x-cx, dy=y-cy;
+      if(dx*dx+dy*dy<=r2){
+        fog[idx(x,y)]=1; fogCount++; changed=true;
+        collectTreasure(x,y);
+      }
+    }
+  }
+  if(changed) fogDirty=true;
+}
+const FC2=document.createElement('canvas');
+FC2.width=FC.width; FC2.height=FC.height;
+const f2ctx=FC2.getContext('2d');
+function redrawFog(){
+  fogDirty=false;
+  fctx.clearRect(0,0,FC.width,FC.height);
+  fctx.fillStyle='#12100b';
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(!fog[idx(x,y)]) fctx.fillRect(x*TILE_PX-1, y*TILE_PX-1, TILE_PX+2, TILE_PX+2);
+  }
+  // bordes difuminados (si el navegador lo soporta)
+  f2ctx.clearRect(0,0,FC2.width,FC2.height);
+  try{
+    f2ctx.filter='blur(9px)';
+    f2ctx.drawImage(FC,0,0);
+    f2ctx.drawImage(FC,0,0);
+    f2ctx.filter='none';
+  }catch(e){
+    f2ctx.drawImage(FC,0,0);
+  }
+}
+const TREASURE_TYPES=[
+  {name:'unas ruinas antiguas',     res:'oro',    amt:100},
+  {name:'un alijo olvidado',        res:'madera', amt:120},
+  {name:'gemas brillantes',         res:'oro',    amt:150},
+  {name:'un escondite de caza',     res:'comida', amt:120},
+  {name:'una cantera abandonada',   res:'piedra', amt:120},
+];
+function genTreasures(){
+  S.treasures=[];
+  let tries=0;
+  while(S.treasures.length<6 && tries<300){
+    tries++;
+    const x=rnd(W), y=rnd(H);
+    if(tiles[idx(x,y)].t!==T_GRASS) continue;
+    if(Math.hypot(x-CX,y-CY)<7) continue;
+    if(S.treasures.some(t=>t.x===x&&t.y===y)) continue;
+    S.treasures.push({x, y, k:rnd(TREASURE_TYPES.length), got:false});
+  }
+}
+function collectTreasure(x,y){
+  if(!S || !S.treasures) return;
+  const t=S.treasures.find(t=>!t.got && t.x===x && t.y===y);
+  if(!t) return;
+  t.got=true;
+  const tt=TREASURE_TYPES[t.k];
+  const cap = M ? resCap() : 250;
+  S.res[tt.res]=Math.min(cap, S.res[tt.res]+tt.amt);
+  S.stats.treasures=(S.stats.treasures||0)+1;
+  SFX.good();
+  toast(`✨ ¡Tus exploradores encuentran ${tt.name}! +${RES_META[tt.res].icon}${tt.amt}`);
+  log(`✨ Tesoro: ${tt.name} (+${RES_META[tt.res].icon}${tt.amt}).`, 'good');
+}
+
+/* ---------------- Estado ---------------- */
+const SAVE_KEY = 'imperios-map-v2';
+let S = null;
+let tiles = null;
+let villagers = [];               // {job, px, py, state, carry, path, pi, target, retry}
+let initialTrees = 0;
+
+function newGame(){
+  tiles = genMap();
+  sanitizeMap();
+  initialTrees = tiles.filter(c=>c.t===T_TREE).length;
+  S = {
+    age:0, res:{comida:50, madera:30, piedra:0, oro:0},
+    techs:{}, builds:[{id:'ayunta', x:CX, y:CY}],
+    vills:[{job:'comida'},{job:'madera'},{job:null}],
+    won:false, dead:false, lastTick:Date.now(), lastEvent:Date.now(), tut:{},
+    sound:true, ach:{}, nextRaid:0,
+    mode:'clasico', wave:0, tcHp:600, nextWave:0,
+    speed:1, mission:0, treasures:[], seasonT:0,
+    solds:[], stance:'home', enemyBuilds:null,
+    stats:{g:{comida:0,madera:0,piedra:0,oro:0}, kills:0, trades:0, raids:0, time:0, hunts:0, treasures:0, trained:0},
+  };
+  genTreasures();
+  initFog(false);
+  reveal(CX, CY, 5.5);
+  wear.fill(0);
+  spawnVillagers();
+  spawnSoldiers();
+}
+function spawnVillagers(){
+  villagers = S.vills.map(v=>({
+    job:v.job, px:(CX+0.5)*TILE_PX, py:(CY+0.5)*TILE_PX,
+    state:'idle', carry:0, path:null, pi:0, target:null, retry:0,
+  }));
+}
+
+/* ---------------- Modificadores ---------------- */
+let M = null;
+function buildCount(id){ return S.builds.filter(b=>b.id===id).length; }
+function calcMods(){
+  const m = {mult:{comida:0,madera:0,piedra:0,oro:0}, global:0, pop:0, cap:0,
+             protect:0, techDisc:0, buildDisc:0, trade:false, carry:0, speed:0};
+  const apply=(mods,n)=>{
+    if(!mods || n<=0) return;
+    if(mods.mult) for(const r in mods.mult) m.mult[r]+=mods.mult[r]*n;
+    if(mods.global) m.global+=mods.global*n;
+    if(mods.pop) m.pop+=mods.pop*n;
+    if(mods.cap) m.cap+=mods.cap*n;
+    if(mods.protect) m.protect=Math.max(m.protect, mods.protect);
+    if(mods.techDisc) m.techDisc=Math.max(m.techDisc, mods.techDisc);
+    if(mods.buildDisc) m.buildDisc+=mods.buildDisc*n;
+    if(mods.trade) m.trade=true;
+    if(mods.carry) m.carry+=mods.carry*n;
+    if(mods.speed) m.speed+=mods.speed*n;
+  };
+  for(const b of BUILDINGS){
+    // el peso es la suma de niveles: un edificio a nivel 2 cuenta como dos
+    const w=S.builds.filter(x=>x.id===b.id).reduce((a,x)=>a+(x.lvl||1),0);
+    apply(b.mods, w);
+  }
+  for(const t of TECHS) if(S.techs[t.id]) apply(t.mods, 1);
+  m.buildDisc = Math.min(m.buildDisc, .35);
+  return m;
+}
+function popCap(){ return M.pop; }
+function resCap(){ return Math.floor(M.cap * Math.pow(2,S.age)); }
+function gatherRate(job, farm){
+  const base = farm ? BASE_G.granja : BASE_G[job];
+  const seasonMult = job==='comida' ? SEASONS[season()].mult : 1;
+  return base * (1+M.mult[job]) * (1+M.global) * seasonMult;
+}
+function carryCap(){ return CARRY_CAP + M.carry; }
+function walkSpeed(){ return WALK_SPEED * (1+M.speed) * TILE_PX; }
+function recruitCost(){ return Math.floor(25 * Math.pow(1.15, Math.max(0,villagers.length-3))); }
+function buildCost(b){
+  const n = buildCount(b.id), out={};
+  for(const r in b.cost) out[r] = Math.floor(b.cost[r] * Math.pow(1.15,n) * (1-M.buildDisc));
+  return out;
+}
+function techCost(t){
+  const out={};
+  for(const r in t.cost) out[r] = Math.floor(t.cost[r] * (1-M.techDisc));
+  return out;
+}
+function canPay(c){ return Object.keys(c).every(r=>S.res[r]>=c[r]); }
+function pay(c){ for(const r in c) S.res[r]-=c[r]; }
+function assignCount(res){ return villagers.filter(v=>v.job===res).length; }
+function idleCount(){ return villagers.filter(v=>v.job===null).length; }
+function buildingAt(x,y){ return S.builds.find(b=>b.x===x&&b.y===y); }
+
+/* ---------------- Utilidades ---------------- */
+function fmt(n){
+  if(n>=1e6) return (n/1e6).toFixed(1).replace('.',',')+'M';
+  if(n>=10000) return (n/1000).toFixed(1).replace('.',',')+'K';
+  return Math.floor(n).toLocaleString('es-ES');
+}
+function costTxt(cost){
+  const ks = Object.keys(cost);
+  return ks.length ? ks.map(r=>`${RES_META[r].icon}${fmt(cost[r])}`).join(' ') : 'Gratis';
+}
+const logMsgs = [];
+function log(msg, cls=''){
+  logMsgs.unshift({msg, cls});
+  if(logMsgs.length>60) logMsgs.pop();
+}
+let toastTimer=null;
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>t.classList.remove('show'), 3000);
+}
+
+/* ---------------- Búsqueda de caminos (BFS 8-dir, solo el agua bloquea:
+   los aldeanos y los invasores caminan entre los edificios de la ciudad) ---------------- */
+function findPath(sx,sy,tx,ty){
+  if(!inB(tx,ty)) return null;
+  if(sx===tx && sy===ty) return [[tx,ty]];
+  const blocked=(x,y)=> tiles[idx(x,y)].t===T_WATER;
+  if(blocked(tx,ty)) return null;
+  const prev = new Int32Array(W*H).fill(-1);
+  const q=[idx(sx,sy)]; prev[idx(sx,sy)]=idx(sx,sy);
+  const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
+  let found=false;
+  while(q.length){
+    const cur=q.shift(), cx=cur%W, cy=(cur-cx)/W;
+    if(cx===tx&&cy===ty){ found=true; break; }
+    for(const [dx,dy] of DIRS){
+      const nx=cx+dx, ny=cy+dy;
+      if(!inB(nx,ny)) continue;
+      const ni=idx(nx,ny);
+      if(prev[ni]!==-1) continue;
+      if(blocked(nx,ny)) continue;
+      prev[ni]=cur; q.push(ni);
+    }
+  }
+  if(!found) return null;
+  const path=[]; let cur=idx(tx,ty);
+  while(cur!==idx(sx,sy)){ path.push([cur%W,(cur-cur%W)/W]); cur=prev[cur]; }
+  path.reverse();
+  return path;
+}
+
+/* ---------------- Sim de aldeanos ---------------- */
+function tileOf(v){ return [Math.floor(v.px/TILE_PX), Math.floor(v.py/TILE_PX)]; }
+
+function farmWorkers(b){
+  return villagers.filter(v=>v.target && v.target.farm && v.target.x===b.x && v.target.y===b.y &&
+    (v.state==='to'||v.state==='gather')).length;
+}
+const unreachable=new Map();   // "x,y" -> marca de tiempo (nodos sin camino, veto temporal)
+function findTarget(v, seed){
+  if(!v.job) return null;
+  const [vx,vy]=tileOf(v);
+  let best=null, bestD=1e9;
+  const consider=(x,y,farm)=>{
+    if(fog && !fog[idx(x,y)]) return;   // solo nodos descubiertos
+    const u=unreachable.get(x+','+y);
+    if(u && performance.now()-u<30000) return;
+    const d=Math.hypot(x-vx,y-vy) + (seed && seed.x===x && seed.y===y ? -100 : 0);
+    if(d<bestD){ bestD=d; best={x,y,farm:!!farm}; }
+  };
+  const tt = T_OF_RES[v.job];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const c=tiles[idx(x,y)];
+    if(c.t===tt && c.amt>0 && !buildingAt(x,y)) consider(x,y,false);
+  }
+  if(v.job==='comida'){
+    for(const b of S.builds) if(b.id==='granja' && farmWorkers(b)<(b.lvl||1)) consider(b.x,b.y,true);
+  }
+  return best;
+}
+function findDrop(v){
+  const [vx,vy]=tileOf(v);
+  let best=null,bestD=1e9;
+  for(const b of S.builds){
+    const def=BLD[b.id];
+    if(!def.drop || !def.drop.includes(v.carryRes)) continue;
+    const d=Math.hypot(b.x-vx,b.y-vy);
+    if(d<bestD){ bestD=d; best=b; }
+  }
+  return best;
+}
+function goTo(v, x, y, nextState){
+  const [vx,vy]=tileOf(v);
+  const p=findPath(vx,vy,x,y);
+  if(!p){ v.state='idle'; v.retry=3; return false; }
+  v.path=p; v.pi=0; v.state=nextState; v.dest={x,y};
+  return true;
+}
+function stepPath(v, dt, spd){
+  if(!v.path || v.pi>=v.path.length) return true;
+  let remaining = (spd||walkSpeed())*dt;
+  while(remaining>0 && v.pi<v.path.length){
+    const [tx,ty]=v.path[v.pi];
+    const gx=(tx+0.5)*TILE_PX, gy=(ty+0.5)*TILE_PX;
+    const dx=gx-v.px, dy=gy-v.py, d=Math.hypot(dx,dy);
+    if(d<=remaining){ v.px=gx; v.py=gy; v.pi++; remaining-=d; }
+    else{ v.px+=dx/d*remaining; v.py+=dy/d*remaining; remaining=0; }
+  }
+  return v.pi>=v.path.length;
+}
+// ventana de depósitos para calcular ritmo/s
+const deposits = {comida:[], madera:[], piedra:[], oro:[]};
+function noteDeposit(res, amt){
+  const now=performance.now();
+  deposits[res].push([now, amt]);
+  S.stats.g[res]+=amt;
+  if(now-lastDepSnd>500){ lastDepSnd=now; SFX.deposit(); }
+}
+function resRate(res){
+  const now=performance.now(), win=15000;
+  const arr=deposits[res];
+  while(arr.length && arr[0][0]<now-win) arr.shift();
+  return arr.reduce((a,e)=>a+e[1],0)/(win/1000);
+}
+
+function updateVillager(v, dt){
+  // revela la niebla al moverse y desgasta el camino
+  const vtx=Math.floor(v.px/TILE_PX), vty=Math.floor(v.py/TILE_PX);
+  const vkey=vtx+','+vty;
+  if(v.lastKey!==vkey){
+    v.lastKey=vkey;
+    reveal(vtx, vty, 3);
+    if(inB(vtx,vty)){
+      wear[idx(vtx,vty)]=Math.min(60, wear[idx(vtx,vty)]+1.2);
+      wearDirty=true;
+    }
+  }
+  switch(v.state){
+    case 'idle':
+      if(v.retry>0){ v.retry-=dt; return; }
+      if(v.job){
+        const t=findTarget(v, v.seed);
+        v.seed=null;
+        if(t){
+          v.target=t;
+          if(!goTo(v, t.x, t.y, 'to')){
+            // sin camino: veta el nodo y prueba enseguida con el siguiente
+            unreachable.set(t.x+','+t.y, performance.now());
+            v.target=null; v.retry=0.3;
+          }
+        }
+        else { v.retry=3; if(!v.warned){ v.warned=true; log(`⚠️ No quedan nodos de ${RES_META[v.job].name.toLowerCase()} accesibles.`, 'bad'); } }
+      }
+      break;
+    case 'to':
+      if(!v.job){ v.state='home'; goTo(v,CX,CY,'home'); break; }
+      if(stepPath(v,dt)) v.state='gather';
+      break;
+    case 'gather': {
+      if(!v.job){ v.carryRes && v.carry>0 ? sendToDrop(v) : goTo(v,CX,CY,'home'); break; }
+      const t=v.target;
+      let ok=false, farm=false;
+      if(t){
+        if(t.farm){
+          const b=buildingAt(t.x,t.y);
+          ok = !!(b && b.id==='granja'); farm=true;
+        } else {
+          const c=tiles[idx(t.x,t.y)];
+          ok = c.t===T_OF_RES[v.job] && c.amt>0;
+        }
+      }
+      if(!ok){ v.state='idle'; v.target=null; break; }
+      const r = gatherRate(v.job, farm)*dt;
+      let got=r;
+      if(!farm){
+        const c=tiles[idx(t.x,t.y)];
+        got=Math.min(r, c.amt);
+        c.amt-=got;
+        if(c.amt<=0){ c.t=T_GRASS; c.amt=0; staticDirty=true; }
+      }
+      v.carry+=got; v.carryRes=v.job;
+      if(v.carry>=carryCap()) sendToDrop(v);
+      break;
+    }
+    case 'back':
+      if(stepPath(v,dt)){
+        const cap=resCap();
+        const dep=Math.min(v.carry, Math.max(0,cap-S.res[v.carryRes]));
+        S.res[v.carryRes]+=dep;
+        if(dep>0) noteDeposit(v.carryRes, v.carry);
+        v.carry=0;
+        if(v.job){
+          if(v.target && !v.target.farm){
+            const c=tiles[idx(v.target.x,v.target.y)];
+            if(c.t===T_OF_RES[v.job] && c.amt>0){ goTo(v,v.target.x,v.target.y,'to'); break; }
+          } else if(v.target && v.target.farm && buildingAt(v.target.x,v.target.y)){
+            goTo(v,v.target.x,v.target.y,'to'); break;
+          }
+          v.state='idle'; v.target=null;
+        } else { goTo(v,CX,CY,'home'); }
+      }
+      break;
+    case 'home':
+      if(stepPath(v,dt)) v.state='idle';
+      break;
+    case 'explore':
+      if(stepPath(v,dt)){ reveal(Math.floor(v.px/TILE_PX), Math.floor(v.py/TILE_PX), 3.5); goTo(v,CX,CY,'home'); }
+      break;
+    case 'hunt': {
+      const a=v.prey;
+      if(!a || !animals.includes(a)){ v.state='idle'; v.prey=null; v.huntTime=0; break; }
+      // límite de caza: si el ciervo se resiste demasiado, el cazador desiste
+      v.huntTime=(v.huntTime||0)+dt;
+      if(v.huntTime>25){
+        v.state='idle'; v.prey=null; v.huntTime=0;
+        log('🦌 El ciervo ha logrado escapar del cazador.');
+        break;
+      }
+      const distPx=Math.hypot(a.px-v.px, a.py-v.py);
+      if(distPx<1.6*TILE_PX){
+        // a corta distancia persigue en línea recta a la posición exacta
+        const step=walkSpeed()*dt;
+        const nx=v.px+(a.px-v.px)/(distPx||1)*step;
+        const ny=v.py+(a.py-v.py)/(distPx||1)*step;
+        const tX=Math.floor(nx/TILE_PX), tY=Math.floor(ny/TILE_PX);
+        if(inB(tX,tY) && tiles[idx(tX,tY)].t!==T_WATER){ v.px=nx; v.py=ny; }
+        v.path=null;
+      } else {
+        v.huntT=(v.huntT||0)-dt;
+        if(v.huntT<=0 || !v.path || v.pi>=v.path.length){
+          v.huntT=0.8;
+          const [hx,hy]=tileOf(v);
+          const p=findPath(hx, hy, Math.floor(a.px/TILE_PX), Math.floor(a.py/TILE_PX));
+          if(!p){ v.state='idle'; v.prey=null; v.huntTime=0; break; }
+          v.path=p; v.pi=0;
+        }
+        stepPath(v,dt);
+      }
+      if(Math.hypot(a.px-v.px, a.py-v.py)<0.8*TILE_PX){
+        animals=animals.filter(x=>x!==a);
+        v.prey=null; v.huntTime=0;
+        S.stats.hunts=(S.stats.hunts||0)+1;
+        v.carry=80; v.carryRes='comida';   // suelta lo que llevara: el ciervo pesa
+        SFX.die();
+        log('🏹 ¡Ciervo cazado! +🍖80 de carne.', 'good');
+        sendToDrop(v);
+      }
+      break;
+    }
+  }
+}
+function sendToDrop(v){
+  const d=findDrop(v);
+  if(d) goTo(v, d.x, d.y, 'back');
+  else { v.carry=0; v.state='idle'; }
+}
+
+/* ---------------- Asignación ---------------- */
+function setAssign(res, delta, seed){
+  if(res==='oro' && S.age<1){ toast('🪙 El oro se desbloquea en la Edad de Bronce.'); return; }
+  if(delta>0){
+    const v=villagers.find(x=>x.job===null);
+    if(!v){ toast('😴 No hay aldeanos libres. Recluta más en 👥.'); return; }
+    v.job=res; v.warned=false; v.seed=seed||null; v.retry=0;
+    if(v.state==='idle'||v.state==='home'){ v.state='idle'; }
+    if(!S.tut.assigned){ S.tut.assigned=true; setTimeout(()=>toast('🛖 Construye chozas para poder reclutar más aldeanos.'),3500); }
+  } else {
+    const list=villagers.filter(x=>x.job===res);
+    if(!list.length) return;
+    const v=list.reduce((a,b)=>a.carry<=b.carry?a:b);
+    v.job=null;
+    if(v.carry>0 && v.carryRes){ sendToDrop(v); }
+    else if(v.state!=='idle'){ goTo(v,CX,CY,'home'); }
+    v.target=null;
+  }
+  syncVills();
+  updateHUD(); refreshCtx(); refreshSheet();
+}
+function syncVills(){ S.vills = villagers.map(v=>({job:v.job})); }
+
+function recruit(){
+  const c=recruitCost();
+  if(totalPop()>=popCap()){ toast('🛖 Necesitas más chozas para alojar aldeanos.'); return; }
+  if(S.res.comida<c){ toast('🍖 No hay comida suficiente.'); return; }
+  S.res.comida-=c;
+  villagers.push({job:null, px:(CX+0.5)*TILE_PX, py:(CY+0.5)*TILE_PX, state:'idle', carry:0, path:null, pi:0, target:null, retry:0});
+  syncVills();
+  log('👶 Un nuevo aldeano se une al poblado.');
+  updateHUD(); refreshCtx(); refreshSheet();
+}
+
+/* ---------------- Construcción ---------------- */
+let placing=null;    // def del edificio en colocación
+let lastPlacedDef=null;
+let shiftHeld=false;
+function startPlacing(def){
+  placing=def;
+  closeSheet(); closeCtx();
+  document.getElementById('place-txt').textContent =
+    `${def.icon} Toca una casilla de hierba ${def.placeTxt? def.placeTxt:''} para colocar: ${def.name} (${costTxt(buildCost(def))})`;
+  document.getElementById('place-banner').style.display='flex';
+}
+function stopPlacing(){
+  placing=null;
+  document.getElementById('place-banner').style.display='none';
+}
+function adjHas(x,y,tt){
+  for(let dy=-1;dy<=1;dy++) for(let dx=-1;dx<=1;dx++){
+    if(!dx&&!dy) continue;
+    const nx=x+dx, ny=y+dy;
+    if(inB(nx,ny) && tiles[idx(nx,ny)].t===tt && tiles[idx(nx,ny)].amt>0) return true;
+  }
+  return false;
+}
+function placeError(def,x,y){
+  if(!inB(x,y)) return 'Fuera del mapa.';
+  if(fog && !fog[idx(x,y)]) return 'Terreno inexplorado.';
+  if(tiles[idx(x,y)].t!==T_GRASS) return 'Solo se puede construir sobre hierba.';
+  if(buildingAt(x,y)) return 'Ya hay un edificio ahí.';
+  if(S.enemyBuilds && S.enemyBuilds.some(e=>e.x===x&&e.y===y)) return 'Territorio enemigo.';
+  if(def.place==='adj_tree' && !adjHas(x,y,T_TREE)) return 'Debe estar junto a un 🌲 bosque.';
+  if(def.place==='adj_stone' && !adjHas(x,y,T_STONE)) return 'Debe estar junto a 🪨 roca.';
+  if(def.place==='adj_gold' && !adjHas(x,y,T_GOLD)) return 'Debe estar junto a una 🪙 veta de oro.';
+  return null;
+}
+function tryPlace(x,y){
+  const def=placing;
+  const err=placeError(def,x,y);
+  if(err){ toast('❌ '+err); return; }
+  const c=buildCost(def);
+  if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); stopPlacing(); return; }
+  pay(c);
+  S.builds.push({id:def.id, x, y, lvl:1});
+  reveal(x, y, 3.5);
+  M=calcMods();
+  staticDirty=true;
+  SFX.build();
+  log(`${def.icon} Has construido: ${def.name}.`);
+  lastPlacedDef=def;
+  if(def.mods.win){ stopPlacing(); winGame(); return; }
+  // con Shift pulsado se sigue colocando en cadena (PC)
+  if(shiftHeld && !(def.max && buildCount(def.id)>=def.max)){
+    document.getElementById('place-txt').textContent =
+      `${def.icon} Colocando en cadena: ${def.name} (${costTxt(buildCost(def))}) — suelta Shift o pulsa Esc para terminar`;
+  } else stopPlacing();
+  if(!S.tut.built){ S.tut.built=true; }
+  updateHUD();
+}
+/* ---------------- Niveles de edificio ---------------- */
+const NO_UPGRADE=new Set(['ayunta','maravilla','muralla','mercado']);
+function maxLvlNow(){ return S.age>=3 ? 3 : S.age>=1 ? 2 : 1; }
+function upgradeCost(b){
+  const def=BLD[b.id], out={};
+  for(const r in def.cost) out[r]=Math.floor(def.cost[r]*Math.pow(2,(b.lvl||1))*(1-M.buildDisc));
+  return out;
+}
+function upgrade(b){
+  const def=BLD[b.id];
+  if(NO_UPGRADE.has(b.id)) return;
+  const lvl=b.lvl||1;
+  if(lvl>=3) return;
+  if(lvl+1>maxLvlNow()){
+    toast(`⬆ El nivel ${lvl+1} se desbloquea en la ${AGES[lvl+1===2?1:3].name}.`);
+    return;
+  }
+  const c=upgradeCost(b);
+  if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); return; }
+  pay(c);
+  b.lvl=lvl+1;
+  M=calcMods(); staticDirty=true;
+  SFX.build();
+  log(`⬆ ${def.name} mejorado a nivel ${b.lvl}.`, 'good');
+  refreshCtx(); updateHUD();
+}
+
+function demolish(b){
+  const def=BLD[b.id];
+  if(def.noBuild){ toast('No puedes demoler el centro urbano.'); return; }
+  S.builds = S.builds.filter(x=>x!==b);
+  const cap=resCap();
+  const inv=Math.pow(2,(b.lvl||1))-1;   // 1, 3 o 7 veces el coste base según nivel
+  for(const r in def.cost) S.res[r]=Math.min(cap, S.res[r]+Math.floor(def.cost[r]*inv*.5));
+  M=calcMods(); staticDirty=true;
+  unreachable.clear();   // al demoler pueden abrirse caminos
+  log(`💥 Has demolido: ${def.name} (recuperas la mitad de lo invertido).`);
+  closeCtx(); updateHUD();
+}
+
+/* ---------------- Investigación / mercado / edad ---------------- */
+function research(t){
+  if(S.techs[t.id]) return;
+  const c=techCost(t);
+  if(!canPay(c)){ toast('Recursos insuficientes.'); return; }
+  pay(c);
+  S.techs[t.id]=true;
+  M=calcMods();
+  SFX.research();
+  log(`${t.icon} Investigado: ${t.name}.`, 'good');
+  refreshSheet(); updateHUD();
+}
+function trade(give,get,giveAmt,getAmt){
+  if(S.res[give]<giveAmt){ toast('Recursos insuficientes.'); return; }
+  S.res[give]-=giveAmt;
+  S.res[get]=Math.min(resCap(), S.res[get]+getAmt);
+  S.stats.trades++;
+  SFX.good();
+  log(`⚖️ Comercio: ${RES_META[give].icon}${giveAmt} → ${RES_META[get].icon}${getAmt}`);
+  refreshSheet(); updateHUD();
+}
+function ageReady(){
+  const next=S.age+1;
+  if(next>=AGES.length) return false;
+  const req=AGE_REQ[next];
+  return Object.keys(req.cost).every(r=>S.res[r]>=req.cost[r]) &&
+         Object.keys(req.builds).every(id=>buildCount(id)>=req.builds[id]);
+}
+function advanceAge(){
+  const next=S.age+1;
+  if(next>=AGES.length) return;
+  if(!ageReady()){ toast('Aún no cumples los requisitos (míralos en ⬆ Edad).'); return; }
+  pay(AGE_REQ[next].cost);
+  S.age=next;
+  M=calcMods(); staticDirty=true;
+  SFX.age();
+  log(`${AGES[next].icon} ¡Has avanzado a la ${AGES[next].name}! Almacenamiento duplicado.`, 'age');
+  toast(`${AGES[next].icon} ¡Bienvenido a la ${AGES[next].name}!`);
+  if(next===1){
+    S.nextRaid = Date.now() + 75000;
+    setTimeout(()=>toast('⚠️ Tu prosperidad atrae saqueadores: construye 🏹 torres de vigilancia.'), 4000);
+    log('⚠️ Los saqueadores han oído hablar de tu ciudad. Construye 🏹 torres.', 'bad');
+  }
+  closeSheet(); updateHUD();
+}
+function hardReset(){
+  noSave=true;
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  location.reload();
+}
+function winGame(){
+  S.won=true; SFX.win(); save();
+  let txt = S.mode==='conquista'
+    ? `Tu ejército ha arrasado el poblado rival. La región entera queda bajo tu dominio: la historia la escriben los vencedores.`
+    : `Has guiado a tu pueblo desde una hoguera en la Edad de Piedra hasta levantar una Maravilla. Tu ciudad pasará a la historia.`;
+  if(S.mode==='reloj'){
+    const t=Math.floor(S.stats.time);
+    const rec=getRecs();
+    if(!rec.bestTime || t<rec.bestTime){
+      setRec('bestTime', t);
+      txt+=` ⏱️ Tiempo: ${fmtTime(t)} — ¡NUEVO RÉCORD!`;
+    } else {
+      txt+=` ⏱️ Tiempo: ${fmtTime(t)} (tu récord: ${fmtTime(rec.bestTime)}).`;
+    }
+  }
+  document.getElementById('victory-txt').textContent = txt;
+  document.getElementById('victory').classList.add('show');
+}
+
+/* ---------------- Eventos y regeneración ---------------- */
+function maybeEvent(now){
+  if(now - S.lastEvent < 50000) return;
+  if(Math.random()>0.4){ S.lastEvent = now-30000; return; }
+  S.lastEvent = now;
+  const pool=EVENTS.filter(e=>S.age>=e.minAge && !(S.mode==='pacifico' && e.type==='bad'));
+  if(!pool.length) return;
+  const total=pool.reduce((a,e)=>a+e.chance,0);
+  let roll=Math.random()*total, ev=pool[0];
+  for(const e of pool){ roll-=e.chance; if(roll<=0){ ev=e; break; } }
+  if(ev.type==='bad'){
+    const loss=Math.floor(S.res[ev.res]*ev.pct*(1-M.protect));
+    if(loss<=0){ log(ev.msg+' …pero tus defensas lo impiden.', 'good'); toast(ev.msg+' ¡Defendido!'); return; }
+    S.res[ev.res]-=loss;
+    SFX.bad();
+    log(`${ev.msg} Pierdes ${RES_META[ev.res].icon}${fmt(loss)}.`, 'bad');
+    toast(ev.msg);
+  } else if(ev.type==='good'){
+    const gain=Math.max(20, Math.floor(resRate(ev.res)*40) || Math.floor(resCap()*0.04));
+    S.res[ev.res]=Math.min(resCap(), S.res[ev.res]+gain);
+    SFX.good();
+    log(`${ev.msg} Ganas ${RES_META[ev.res].icon}${fmt(gain)}.`, 'good');
+    toast(ev.msg);
+  } else if(ev.type==='pop' && totalPop()<popCap()){
+    villagers.push({job:null, px:(CX+0.5)*TILE_PX, py:(CY+0.5)*TILE_PX, state:'idle', carry:0, path:null, pi:0, target:null, retry:0});
+    syncVills();
+    log(ev.msg+' (+1 aldeano)', 'good');
+    toast(ev.msg);
+  }
+  updateHUD();
+}
+let lastRegrow=0;
+function regrow(now){
+  if(now-lastRegrow<15000) return;
+  lastRegrow=now;
+  const treeCount=tiles.filter(c=>c.t===T_TREE).length;
+  if(treeCount>=initialTrees) return;
+  // brota un árbol nuevo junto a un bosque existente
+  const cands=[];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const c=tiles[idx(x,y)];
+    if(c.t===T_GRASS && !buildingAt(x,y) && adjHas(x,y,T_TREE) && Math.hypot(x-CX,y-CY)>2) cands.push([x,y]);
+  }
+  if(cands.length){
+    const [x,y]=cands[rnd(cands.length)];
+    const c=tiles[idx(x,y)];
+    c.t=T_TREE; c.amt=T_AMT[T_TREE];
+    staticDirty=true;
+  }
+}
+
+/* ---------------- Fauna: ciervos y lobos ---------------- */
+let animals=[];
+let lastAnimalTick=0, wolfWarned=false;
+let birds=[], lastBirdFlock=0;
+function updateBirds(dt){
+  const now=Date.now();
+  if(now-lastBirdFlock > 18000+rnd(20000)){
+    lastBirdFlock=now;
+    const by=rnd(H*TILE_PX);
+    for(let i=0;i<3;i++) birds.push({x:-30-i*22, y:by+rnd(30)-15, v:(60+rnd(30)), o:i*2});
+  }
+  for(const b of birds) b.x+=b.v*dt;
+  birds=birds.filter(b=>b.x<W*TILE_PX+60);
+}
+function spawnAnimal(kind){
+  for(let tries=0; tries<80; tries++){
+    const x=rnd(W), y=rnd(H);
+    if(tiles[idx(x,y)].t!==T_GRASS || buildingAt(x,y)) continue;
+    if(Math.hypot(x-CX,y-CY)<7) continue;
+    animals.push({kind, px:(x+0.5)*TILE_PX, py:(y+0.5)*TILE_PX, tx:x, ty:y, wait:Math.random()*3, cd:0});
+    return;
+  }
+}
+function maintainAnimals(){
+  if(animals.filter(a=>a.kind==='deer').length<5) spawnAnimal('deer');
+  if(animals.filter(a=>a.kind==='wolf').length<2) spawnAnimal('wolf');
+}
+function moveAnimal(a, txp, typ, step){
+  const dx=txp-a.px, dy=typ-a.py, d=Math.hypot(dx,dy)||1;
+  const nx=a.px+dx/d*step, ny=a.py+dy/d*step;
+  const tX=Math.floor(nx/TILE_PX), tY=Math.floor(ny/TILE_PX);
+  if(!inB(tX,tY) || tiles[idx(tX,tY)].t===T_WATER){ a.wait=0.5; return; }
+  a.px=nx; a.py=ny;
+}
+function updateAnimal(a, dt){
+  a.cd=Math.max(0, (a.cd||0)-dt);
+  // el ciervo huye de su cazador
+  if(a.kind==='deer'){
+    const hunter=villagers.find(v=>v.state==='hunt' && v.prey===a);
+    if(hunter){ moveAnimal(a, a.px*2-hunter.px, a.py*2-hunter.py, 1.7*TILE_PX*dt); return; }
+  }
+  // el lobo acecha aldeanos alejados de la ciudad
+  if(a.kind==='wolf' && a.cd<=0){
+    let vt=null, vd=2.5*TILE_PX;
+    for(const v of villagers){
+      if(Math.hypot(v.px/TILE_PX-CX, v.py/TILE_PX-CY)<=6) continue;   // cerca de casa están a salvo
+      const d=Math.hypot(v.px-a.px, v.py-a.py);
+      if(d<vd){ vd=d; vt=v; }
+    }
+    if(vt){
+      moveAnimal(a, vt.px, vt.py, 2.1*TILE_PX*dt);
+      if(Math.hypot(vt.px-a.px, vt.py-a.py)<0.45*TILE_PX){
+        if(vt.carry>0) log('🐺 ¡Un lobo asusta a un aldeano y suelta toda su carga!', 'bad');
+        vt.carry=0; vt.target=null; vt.prey=null;
+        goTo(vt, CX, CY, 'home');
+        a.cd=12;
+        if(!wolfWarned){ wolfWarned=true; toast('🐺 ¡Cuidado! Los lobos asustan a tus aldeanos y les hacen soltar la carga.'); SFX.bad(); }
+      }
+      return;
+    }
+  }
+  // pasea tranquilamente
+  a.wait-=dt;
+  if(a.wait>0) return;
+  const gx=(a.tx+0.5)*TILE_PX, gy=(a.ty+0.5)*TILE_PX;
+  if(Math.hypot(gx-a.px, gy-a.py)<4){
+    for(let i=0;i<10;i++){
+      const nx=a.tx+rnd(5)-2, ny=a.ty+rnd(5)-2;
+      if(inB(nx,ny) && tiles[idx(nx,ny)].t===T_GRASS && !buildingAt(nx,ny) && Math.hypot(nx-CX,ny-CY)>=6){ a.tx=nx; a.ty=ny; break; }
+    }
+    a.wait=1+Math.random()*4;
+  } else {
+    moveAnimal(a, gx, gy, (a.kind==='deer'?0.9:1.1)*TILE_PX*dt);
+  }
+}
+function hunt(a){
+  let v=villagers.find(v=>v.job===null && (v.state==='idle'||v.state==='home'));
+  if(!v) v=villagers.find(v=>v.job==='comida' && v.state!=='hunt');
+  if(!v) v=villagers.find(v=>v.state!=='hunt');
+  if(!v){ toast('😴 No hay aldeanos disponibles para cazar.'); return; }
+  v.prey=a; v.state='hunt'; v.path=null; v.huntT=0;
+  log('🏹 Un aldeano sale de caza.');
+  closeCtx();
+}
+
+/* ---------------- Ejército y poblado enemigo (Conquista) ---------------- */
+let soldiers=[];    // {kind, px, py, hp, path, pi, rp, target}
+function totalPop(){ return villagers.length + soldiers.length; }
+function syncSolds(){ S.solds = soldiers.map(s=>({kind:s.kind, hp:Math.round(s.hp)})); }
+function spawnSoldiers(){
+  soldiers=(S.solds||[]).map(sv=>({
+    kind:sv.kind, hp:sv.hp||UNITS[sv.kind].hp,
+    px:(CX+0.5)*TILE_PX+(Math.random()*40-20), py:(CY+0.5)*TILE_PX+(Math.random()*40-20),
+    path:null, pi:0, rp:0,
+  }));
+}
+function genEnemyVillage(){
+  const corners=[[3,3],[W-4,3],[3,H-4],[W-4,H-4]];
+  const [ex,ey]=corners[rnd(4)];
+  // despeja el terreno
+  for(let y=ey-2;y<=ey+2;y++) for(let x=ex-2;x<=ex+2;x++){
+    if(inB(x,y)){ tiles[idx(x,y)].t=T_GRASS; tiles[idx(x,y)].amt=0; }
+  }
+  S.enemyBuilds=[
+    {id:'etc',    x:ex,   y:ey,   hp:800, max:800},
+    {id:'ehut',   x:ex-2, y:ey,   hp:130, max:130},
+    {id:'ehut',   x:ex+2, y:ey,   hp:130, max:130},
+    {id:'ehut',   x:ex,   y:ey+2, hp:130, max:130},
+    {id:'etower', x:ex-1, y:ey-2, hp:230, max:230, atk:{range:3.8, dps:10}},
+    {id:'etower', x:ex+1, y:ey+1, hp:230, max:230, atk:{range:3.8, dps:10}},
+  ];
+}
+function trainUnit(kind, from){
+  const u=UNITS[kind];
+  if(S.age<u.needAge){ toast(`${u.icon} Requiere la ${AGES[u.needAge].name}.`); return; }
+  if(totalPop()>=popCap()){ toast('🛖 Población al máximo: construye más chozas.'); return; }
+  if(!canPay(u.cost)){ toast('Recursos insuficientes: '+costTxt(u.cost)); return; }
+  pay(u.cost);
+  soldiers.push({kind, hp:u.hp, px:(from.x+0.5)*TILE_PX, py:(from.y+0.5)*TILE_PX+10, path:null, pi:0, rp:0});
+  syncSolds();
+  S.stats.trained=(S.stats.trained||0)+1;
+  SFX.build();
+  log(`${u.icon} ${u.name} entrenado.`);
+  refreshCtx(); updateHUD();
+}
+function nearestEnemyBuild(px,py){
+  if(!S.enemyBuilds || !S.enemyBuilds.length) return null;
+  let best=null, bd=1e9;
+  for(const eb of S.enemyBuilds){
+    const d=Math.hypot((eb.x+0.5)*TILE_PX-px, (eb.y+0.5)*TILE_PX-py);
+    if(d<bd){ bd=d; best=eb; }
+  }
+  return best;
+}
+function destroyEnemyBuild(eb){
+  S.enemyBuilds=S.enemyBuilds.filter(x=>x!==eb);
+  staticDirty=true;
+  SFX.die();
+  if(eb.id==='etc'){
+    log('🏆 ¡El centro urbano enemigo ha caído!', 'age');
+    winGame();
+  } else {
+    log('💥 Edificio enemigo destruido.', 'good');
+    toast('💥 ¡Edificio enemigo destruido!');
+  }
+}
+function updateSoldier(s, dt){
+  const u=UNITS[s.kind];
+  // objetivo prioritario: invasores cercanos
+  let tgt=null, td=1e9;
+  for(const e of enemies){
+    const d=Math.hypot(e.px-s.px, e.py-s.py);
+    if(d<td){ td=d; tgt=e; }
+  }
+  const aggro=(S.stance==='attack'?3.5:5.0)*TILE_PX;
+  if(tgt && td<=aggro){
+    if(td>u.range*TILE_PX){
+      moveUnit(s, Math.floor(tgt.px/TILE_PX), Math.floor(tgt.py/TILE_PX), dt);
+    } else {
+      tgt.hp-=u.dps*dt;
+      if(u.range>1.5 && performance.now()-(s.lastShot||0)>400){
+        s.lastShot=performance.now();
+        shots.push({x1:s.px, y1:s.py-10, x2:tgt.px, y2:tgt.py, until:performance.now()+120});
+      }
+      if(tgt.hp<=0) killEnemy(tgt);
+    }
+    return;
+  }
+  if(S.stance==='attack' && S.enemyBuilds && S.enemyBuilds.length){
+    const eb=nearestEnemyBuild(s.px, s.py);
+    const ebx=(eb.x+0.5)*TILE_PX, eby=(eb.y+0.5)*TILE_PX;
+    const d=Math.hypot(ebx-s.px, eby-s.py);
+    if(d>Math.max(u.range,0.9)*TILE_PX){
+      moveUnit(s, eb.x, eb.y, dt);
+    } else {
+      eb.hp-=u.dps*dt;
+      if(u.range>1.5 && performance.now()-(s.lastShot||0)>400){
+        s.lastShot=performance.now();
+        shots.push({x1:s.px, y1:s.py-10, x2:ebx, y2:eby, until:performance.now()+120});
+      }
+      if(eb.hp<=0) destroyEnemyBuild(eb);
+    }
+    return;
+  }
+  // en casa: mantiene posición cerca del centro urbano
+  const hx=(CX+0.5)*TILE_PX, hy=(CY+0.5)*TILE_PX;
+  if(Math.hypot(hx-s.px, hy-s.py)>2.5*TILE_PX) moveUnit(s, CX, CY, dt);
+}
+function moveUnit(s, tx, ty, dt){
+  s.rp=(s.rp||0)-dt;
+  if(s.rp<=0 || !s.path || s.pi>=s.path.length){
+    s.rp=1.2;
+    const p=findPath(Math.floor(s.px/TILE_PX), Math.floor(s.py/TILE_PX), tx, ty);
+    if(!p) return;
+    s.path=p; s.pi=0;
+  }
+  stepPath(s, dt, SOLDIER_SPEED*TILE_PX);
+}
+function killSoldier(s){
+  soldiers=soldiers.filter(x=>x!==s);
+  syncSolds();
+  log('💀 Un soldado ha caído en combate.', 'bad');
+  updateHUD();
+}
+function updateEnemyTowers(dt){
+  if(!S.enemyBuilds || !soldiers.length) return;
+  const now=performance.now();
+  for(const eb of S.enemyBuilds){
+    if(!eb.atk) continue;
+    const bx2=(eb.x+0.5)*TILE_PX, by2=(eb.y+0.5)*TILE_PX;
+    let tgt=null, td=1e9;
+    for(const s of soldiers){
+      const d=Math.hypot(s.px-bx2, s.py-by2);
+      if(d<td){ td=d; tgt=s; }
+    }
+    if(tgt && td<=eb.atk.range*TILE_PX){
+      tgt.hp-=eb.atk.dps*dt;
+      if(now-(eb.lastShot||0)>380){
+        eb.lastShot=now;
+        shots.push({x1:bx2, y1:by2-12, x2:tgt.px, y2:tgt.py, until:now+130, foe:true});
+      }
+      if(tgt.hp<=0) killSoldier(tgt);
+    }
+  }
+}
+
+/* ---------------- Incursiones enemigas y defensas ---------------- */
+let enemies=[];        // {px,py,sx,sy,hp,maxHp,state,path,pi,loot,lootRes,timer}
+let raidPending=0;
+let shots=[];          // flechas: {x1,y1,x2,y2,until}
+const ENEMY_SPEED = 2.3*TILE_PX;
+
+function maybeRaid(nowMs){
+  if(S.mode==='pacifico' || S.mode==='oleadas') return;
+  if(S.age<1 || S.won) return;
+  if(!S.nextRaid){ S.nextRaid = nowMs + 120000 + rnd(60000); return; }
+  if(raidPending){
+    if(nowMs>=raidPending){ raidPending=0; startRaid(); }
+    return;
+  }
+  if(nowMs>=S.nextRaid){
+    raidPending = nowMs + 8000;
+    S.nextRaid = nowMs + 150000 + rnd(90000);
+    log('📯 Vigías: ¡incursión enemiga a la vista!', 'bad');
+    toast('📯 ¡Se acerca una incursión enemiga! Prepara las 🏹 torres.');
+    SFX.horn();
+  }
+}
+function edgeSpawn(){
+  for(let tries=0; tries<60; tries++){
+    const side=rnd(4);
+    let x,y;
+    if(side===0){ x=rnd(W); y=0; }
+    else if(side===1){ x=rnd(W); y=H-1; }
+    else if(side===2){ x=0; y=rnd(H); }
+    else { x=W-1; y=rnd(H); }
+    if(tiles[idx(x,y)].t!==T_WATER && !buildingAt(x,y)) return {x,y};
+  }
+  return {x:0, y:0};
+}
+function spawnEnemies(n, hp){
+  // en Conquista salen del poblado enemigo; si ya no existe, no hay incursiones
+  let sp;
+  if(S.mode==='conquista'){
+    const etc=(S.enemyBuilds||[]).find(b=>b.id==='etc');
+    if(!etc) return;
+    sp={x:etc.x, y:etc.y};
+  } else sp = edgeSpawn();
+  for(let i=0;i<n;i++){
+    enemies.push({
+      px:(sp.x+0.5)*TILE_PX + (Math.random()*16-8),
+      py:(sp.y+0.5)*TILE_PX + (Math.random()*16-8),
+      sx:sp.x, sy:sp.y, hp, maxHp:hp,
+      state:'approach', path:null, pi:0, loot:0, lootRes:null, timer:0,
+    });
+  }
+}
+function startRaid(){
+  let n = 1 + S.age;
+  if(S.mode==='conquista') n += Math.min(4, Math.floor(S.stats.time/300));   // crece con el tiempo
+  spawnEnemies(n, 40 + 22*S.age);
+  log(`👺 ¡${n} invasores atacan tu ciudad!`, 'bad');
+  toast(`👺 ¡${n} invasores! Van a por tu centro urbano.`);
+}
+/* --- Supervivencia por oleadas --- */
+function tcMaxHp(){ return 600 + 200*S.age; }
+function maybeWave(nowMs){
+  if(S.mode!=='oleadas' || S.won || S.dead) return;
+  if(enemies.length) return;
+  if(!S.nextWave){ S.nextWave = nowMs + 150000; return; }
+  if(nowMs>=S.nextWave){
+    S.wave++;
+    const n = 1 + Math.floor(S.wave*1.2);
+    const hp = 35 + S.wave*10;
+    spawnEnemies(n, hp);
+    SFX.horn();
+    log(`🌊 Oleada ${S.wave}: ¡${n} invasores!`, 'bad');
+    toast(`🌊 ¡Oleada ${S.wave}: ${n} invasores!`);
+  }
+}
+function waveCleared(){
+  S.nextWave = Date.now() + 50000;
+  S.tcHp = Math.min(tcMaxHp(), S.tcHp + 150);
+  const rec=getRecs();
+  if(S.wave>(rec.bestWave||0)) setRec('bestWave', S.wave);
+  toast(`🛡️ ¡Oleada ${S.wave} superada! La siguiente llega en 45 s.`);
+  log(`🛡️ Oleada ${S.wave} superada.`, 'good');
+}
+function gameOver(){
+  if(S.dead) return;
+  S.dead=true;
+  noSave=true;
+  try{ localStorage.removeItem(SAVE_KEY); }catch(e){}
+  const rec=getRecs();
+  const isRec = S.wave>(rec.bestWave||0);
+  if(isRec) setRec('bestWave', S.wave);
+  const v=document.getElementById('victory');
+  v.querySelector('.v-icon').textContent='💀';
+  v.querySelector('h1').textContent='Tu ciudad ha caído';
+  document.getElementById('victory-txt').textContent =
+    `Los invasores han arrasado tu centro urbano en la oleada ${S.wave}. `+
+    (isRec ? '¡Nueva mejor marca!' : `Tu mejor marca: oleada ${rec.bestWave||S.wave}.`);
+  v.classList.add('show');
+  SFX.bad();
+}
+function pickLoot(e){
+  let best='comida';
+  for(const r of RES) if(S.res[r]>S.res[best]) best=r;
+  e.lootRes=best;
+}
+function removeEnemy(e, escaped){
+  enemies = enemies.filter(x=>x!==e);
+  if(escaped && e.loot>=1){
+    log(`👺 Un invasor escapa con ${RES_META[e.lootRes].icon}${fmt(e.loot)}.`, 'bad');
+  }
+  if(!enemies.length && !raidPending){
+    S.stats.raids++;
+    if(S.mode==='oleadas' && !S.dead) waveCleared();
+    else toast('🛡️ La incursión ha terminado.');
+  }
+}
+function killEnemy(e){
+  enemies = enemies.filter(x=>x!==e);
+  S.stats.kills++;
+  const cap=resCap();
+  if(e.loot>=1 && e.lootRes) S.res[e.lootRes]=Math.min(cap, S.res[e.lootRes]+e.loot);
+  S.res.oro=Math.min(cap, S.res.oro+5);
+  SFX.die();
+  log(`⚔️ Invasor abatido: +🪙5${e.loot>=1?` y recuperas ${RES_META[e.lootRes].icon}${fmt(e.loot)}`:''}.`, 'good');
+  if(!enemies.length && !raidPending){
+    S.stats.raids++;
+    if(S.mode==='oleadas' && !S.dead) waveCleared();
+    else toast('🛡️ ¡Incursión repelida!');
+  }
+}
+function updateEnemy(e, dt){
+  // si hay un soldado al alcance, lucha contra él
+  if(soldiers.length){
+    let s=null, sd=1e9;
+    for(const x of soldiers){
+      const d=Math.hypot(x.px-e.px, x.py-e.py);
+      if(d<sd){ sd=d; s=x; }
+    }
+    if(s && sd<1.3*TILE_PX){
+      s.hp-=7*dt;
+      if(s.hp<=0) killSoldier(s);
+      return;
+    }
+  }
+  switch(e.state){
+    case 'approach': {
+      if(!e.path){
+        const [ex,ey]=[Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX)];
+        const p=findPath(ex,ey,CX,CY);
+        if(!p){ removeEnemy(e,false); return; }
+        e.path=p; e.pi=0;
+      }
+      if(stepPath(e,dt,ENEMY_SPEED)){ e.state='loot'; e.timer=4; pickLoot(e); }
+      break;
+    }
+    case 'loot': {
+      const rate=(10+6*S.age)*(1-M.protect);
+      const take=Math.min(rate*dt, S.res[e.lootRes]||0);
+      S.res[e.lootRes]-=take; e.loot+=take;
+      if(S.mode==='oleadas'){
+        // en Supervivencia no huyen: golpean el centro urbano hasta caer
+        S.tcHp-=6*dt;
+        if(S.tcHp<=0){ S.tcHp=0; gameOver(); }
+      } else {
+        e.timer-=dt;
+        if(e.timer<=0){ e.state='flee'; e.path=null; }
+      }
+      break;
+    }
+    case 'flee': {
+      if(!e.path){
+        const [ex,ey]=[Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX)];
+        const p=findPath(ex,ey,e.sx,e.sy);
+        if(!p){ removeEnemy(e,true); return; }
+        e.path=p; e.pi=0;
+      }
+      if(stepPath(e,dt,ENEMY_SPEED)) removeEnemy(e,true);
+      break;
+    }
+  }
+}
+function updateDefenses(dt){
+  const now=performance.now();
+  if(shots.length) shots=shots.filter(s=>s.until>now);
+  if(!enemies.length) return;
+  for(const b of S.builds){
+    const atk=BLD[b.id].attack;
+    if(!atk) continue;
+    const bx=(b.x+0.5)*TILE_PX, by=(b.y+0.5)*TILE_PX;
+    let tgt=null, td=1e9;
+    for(const e of enemies){
+      const d=Math.hypot(e.px-bx, e.py-by);
+      if(d<td){ td=d; tgt=e; }
+    }
+    const lvl=b.lvl||1;
+    const range=(atk.range+0.5*(lvl-1))*TILE_PX;
+    if(tgt && td<=range){
+      tgt.hp-=atk.dps*lvl*dt;
+      if(now-(b.lastShot||0)>350){
+        b.lastShot=now;
+        shots.push({x1:bx, y1:by-12, x2:tgt.px, y2:tgt.py, until:now+130});
+        if(now-lastPewSnd>160){ lastPewSnd=now; SFX.pew(); }
+      }
+      if(tgt.hp<=0) killEnemy(tgt);
+    }
+  }
+}
+
+/* ---------------- Guardado ---------------- */
+let noSave=false;   // evita que beforeunload re-guarde tras un reinicio
+function save(){
+  if(noSave) return;
+  S.lastTick=Date.now();
+  syncVills();
+  syncSolds();
+  if(fog) S.fogStr=Array.from(fog).join('');
+  const Sclean={...S,
+    builds:S.builds.map(b=>({id:b.id, x:b.x, y:b.y, lvl:b.lvl||1})),
+    enemyBuilds:S.enemyBuilds ? S.enemyBuilds.map(e=>({id:e.id, x:e.x, y:e.y, hp:Math.round(e.hp), max:e.max, atk:e.atk})) : null,
+  };
+  const data={S:Sclean, tiles:tiles.map(c=>[c.t,Math.round(c.amt)]), initialTrees};
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(data)); }catch(e){}
+}
+function load(){
+  try{
+    const raw=localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const d=JSON.parse(raw);
+    if(!d.S || !d.tiles || d.tiles.length!==W*H) return false;
+    S=d.S;
+    tiles=d.tiles.map(e=>({t:e[0], amt:e[1]}));
+    sanitizeMap();   // repara mapas antiguos con recursos inalcanzables
+    initialTrees=d.initialTrees||40;
+    // compatibilidad con guardados antiguos
+    if(S.sound===undefined) S.sound=true;
+    S.ach = S.ach||{};
+    S.mode = S.mode||'clasico';
+    S.wave = S.wave||0;
+    if(S.tcHp===undefined) S.tcHp=600;
+    S.builds.forEach(b=>{ b.lvl=b.lvl||1; });
+    S.speed = S.speed||1;
+    S.mission = S.mission||0;
+    S.treasures = S.treasures||[];
+    S.stats.hunts = S.stats.hunts||0;
+    S.stats.treasures = S.stats.treasures||0;
+    S.stats.trained = S.stats.trained||0;
+    S.seasonT = S.seasonT||0;
+    S.solds = S.solds||[];
+    S.stance = S.stance||'home';
+    if(typeof S.fogStr==='string' && S.fogStr.length===W*H){
+      fog=Uint8Array.from(S.fogStr, c=>+c);
+      fogCount=fog.reduce((a,b)=>a+b,0);
+      fogDirty=true;
+    } else initFog(true);   // guardados antiguos: mapa ya conocido
+    S.stats = Object.assign({g:null, kills:0, trades:0, raids:0, time:0}, S.stats||{});
+    S.stats.g = Object.assign({comida:0,madera:0,piedra:0,oro:0}, S.stats.g||{});
+    // tregua tras cargar: la siguiente incursión no llega de inmediato
+    if(S.age>=1) S.nextRaid = Math.max(S.nextRaid||0, Date.now()+90000);
+    spawnVillagers();
+    spawnSoldiers();
+    return true;
+  }catch(e){ return false; }
+}
+function offlineGains(){
+  const elapsed=(Date.now()-S.lastTick)/1000;
+  if(elapsed<90) return;
+  const t=Math.min(elapsed, 8*3600);
+  const cap=resCap();
+  let any=false;
+  for(const r of RES){
+    if(r==='oro'&&S.age<1) continue;
+    const est=assignCount(r)*BASE_G[r]*(1+M.mult[r])*(1+M.global)*0.6;   // 0,6 ≈ factor de desplazamiento
+    const g=est*t*0.5;
+    if(g>0){ S.res[r]=Math.min(cap,S.res[r]+g); any=true; }
+  }
+  if(any){
+    const h=Math.floor(t/3600), min=Math.floor((t%3600)/60);
+    toast(`🌙 Mientras no estabas (${h? h+'h ':''}${min}min), tus aldeanos siguieron trabajando (al 50%).`);
+    log('🌙 Progreso offline aplicado.', 'good');
+  }
+}
+
+/* ---------------- Render ---------------- */
+const canvas=document.getElementById('map');
+const ctx2d=canvas.getContext('2d');
+let cam={x:0,y:0,z:0.8};
+let cw=0, ch=0, dpr=1;
+let staticDirty=true;
+const SC=document.createElement('canvas');
+SC.width=W*TILE_PX; SC.height=H*TILE_PX;
+const sctx=SC.getContext('2d');
+let selected=null;
+
+function resizeCanvas(){
+  const first = cw===0;
+  const wrap=document.getElementById('map-wrap');
+  cw=wrap.clientWidth; ch=wrap.clientHeight;
+  dpr=window.devicePixelRatio||1;
+  canvas.width=cw*dpr; canvas.height=ch*dpr;
+  if(first && cw>0) centerCam(); else clampCam();
+}
+function minZoom(){ return Math.min(cw/(W*TILE_PX), ch/(H*TILE_PX))*0.95; }
+function clampCam(){
+  cam.z=Math.max(minZoom(), Math.min(2, cam.z));
+  const vw=cw/cam.z, vh=ch/cam.z;
+  cam.x=Math.max(Math.min(cam.x, W*TILE_PX-vw*0.5), -vw*0.5);
+  cam.y=Math.max(Math.min(cam.y, H*TILE_PX-vh*0.5), -vh*0.5);
+}
+function centerCam(){
+  cam.x=(CX+0.5)*TILE_PX - cw/cam.z/2;
+  cam.y=(CY+0.5)*TILE_PX - ch/cam.z/2;
+  clampCam();
+}
+
+const GRASS_TONES=['#4a6b35','#466833','#436330','#4d6e38'];
+let waterTiles=[];
+let wear=new Float32Array(W*H);   // desgaste del terreno por el paso de aldeanos
+let wearDirty=false;
+
+/* ---------- Arte vectorial de edificios ---------- */
+function bx(c,x,y,w,h,col,r){ c.fillStyle=col; c.beginPath(); c.roundRect(x,y,w,h,r==null?2:r); c.fill(); }
+function btr(c,x1,y1,x2,y2,x3,y3,col){ c.fillStyle=col; c.beginPath(); c.moveTo(x1,y1); c.lineTo(x2,y2); c.lineTo(x3,y3); c.closePath(); c.fill(); }
+function bcir(c,x,y,r,col){ c.fillStyle=col; c.beginPath(); c.arc(x,y,r,0,Math.PI*2); c.fill(); }
+function drawBuilding(c, b){
+  const p=b.x*TILE_PX, q=b.y*TILE_PX, m=p+24;
+  shadowEll(c, m, q+42, 17, 5, .25);
+  switch(b.id){
+    case 'ayunta': {
+      if(S.age<=1){                              // campamento
+        btr(c, m, q+6, p+6, q+42, p+42, q+42, '#8a5a30');
+        btr(c, m, q+10, p+13, q+42, p+35, q+42, '#6e4523');
+        btr(c, m, q+22, p+19, q+42, p+29, q+42, '#3a2413');
+      } else {                                    // casa consistorial
+        bx(c, p+8, q+18, 32, 24, '#8a7660', 3);
+        btr(c, p+5, q+20, p+43, q+20, m, q+4, S.age>=4?'#7d3c34':'#9c5a3c');
+        bx(c, p+20, q+30, 8, 12, '#4a3320', 2);
+      }
+      c.strokeStyle='#e8c06a'; c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(m+14, q+6); c.lineTo(m+14, q+20); c.stroke();
+      btr(c, m+14, q+6, m+24, q+9, m+14, q+13, '#e8c06a');
+      break;
+    }
+    case 'choza':
+      bcir(c, m, q+30, 12, '#7a5a35');
+      btr(c, m, q+6, p+7, q+26, p+41, q+26, '#c9a55a');
+      btr(c, m, q+10, p+12, q+25, p+36, q+25, '#b08d45');
+      bx(c, m-4, q+30, 8, 12, '#3f2c18', 3);
+      break;
+    case 'granja':
+      bx(c, p+6, q+10, 36, 32, '#6e5230', 4);
+      for(let i=0;i<4;i++) bx(c, p+9, q+13+i*8, 30, 4, '#7fae4a', 2);
+      bx(c, p+30, q+4, 13, 11, '#8a5a30', 2);
+      btr(c, p+28, q+5, p+45, q+5, p+36.5, q-3, '#a8763c');
+      break;
+    case 'almacen':
+      bx(c, p+7, q+20, 20, 20, '#9c7845', 2);
+      c.strokeStyle='#6e5230'; c.lineWidth=1.5;
+      c.strokeRect(p+7, q+20, 20, 20);
+      c.beginPath(); c.moveTo(p+7,q+20); c.lineTo(p+27,q+40); c.moveTo(p+27,q+20); c.lineTo(p+7,q+40); c.stroke();
+      bx(c, p+24, q+10, 17, 17, '#b08d55', 2);
+      c.strokeRect(p+24, q+10, 17, 17);
+      break;
+    case 'hoguera':
+      bx(c, p+12, q+32, 24, 5, '#5d4326', 2);
+      bx(c, p+15, q+35, 18, 4, '#4a3320', 2);
+      btr(c, m, q+8, m-9, q+33, m+9, q+33, '#e07a2a');
+      btr(c, m, q+16, m-5, q+33, m+5, q+33, '#f6c04a');
+      break;
+    case 'aserradero':
+      bcir(c, p+14, q+36, 6, '#8a6636'); bcir(c, p+26, q+36, 6, '#96703c'); bcir(c, p+20, q+27, 6, '#a37a42');
+      bcir(c, p+34, q+22, 9, '#b9bec4');
+      bcir(c, p+34, q+22, 3.5, '#6e6e6a');
+      for(let i=0;i<8;i++){ const a=i*Math.PI/4; btr(c, p+34+Math.cos(a)*9, q+22+Math.sin(a)*9, p+34+Math.cos(a+.3)*7, q+22+Math.sin(a+.3)*7, p+34+Math.cos(a-.3)*7, q+22+Math.sin(a-.3)*7, '#d4d8dc'); }
+      break;
+    case 'cantera':
+      bx(c, p+8, q+26, 15, 13, '#8b9095', 2); bx(c, p+25, q+29, 13, 10, '#9ba0a5', 2); bx(c, p+15, q+16, 13, 11, '#a6aab0', 2);
+      c.strokeStyle='#5d4326'; c.lineWidth=2.5;
+      c.beginPath(); c.moveTo(p+34, q+8); c.lineTo(p+42, q+20); c.stroke();
+      btr(c, p+30, q+6, p+40, q+4, p+37, q+12, '#7d838a');
+      break;
+    case 'mina':
+      btr(c, m, q+6, p+4, q+40, p+44, q+40, '#7d838a');
+      c.fillStyle='#1c1712';
+      c.beginPath(); c.arc(m, q+38, 10, Math.PI, 2*Math.PI); c.fill();
+      bcir(c, m-6, q+18, 2.5, '#e8c06a'); bcir(c, m+7, q+24, 2, '#e8c06a'); bcir(c, m+2, q+12, 1.8, '#f6e2a0');
+      break;
+    case 'mercado': {
+      bx(c, p+8, q+24, 32, 16, '#8a6636', 2);
+      c.strokeStyle='#5d4326'; c.lineWidth=2;
+      c.beginPath(); c.moveTo(p+8,q+14); c.lineTo(p+8,q+24); c.moveTo(p+40,q+14); c.lineTo(p+40,q+24); c.stroke();
+      for(let i=0;i<4;i++) bx(c, p+6+i*9, q+8, 9, 8, i%2?'#c94f3f':'#e8ddc8', 0);
+      bx(c, p+13, q+29, 8, 6, '#c9a55a', 1); bx(c, p+26, q+29, 9, 6, '#7fae4a', 1);
+      break;
+    }
+    case 'torre':
+      bx(c, p+16, q+14, 16, 28, '#98917f', 2);
+      bx(c, p+12, q+6, 24, 10, '#aaa390', 2);
+      for(let i=0;i<3;i++) bx(c, p+13+i*8, q+2, 6, 5, '#aaa390', 1);
+      bx(c, p+22, q+22, 4, 8, '#2c2419', 1);
+      break;
+    case 'muralla':
+      bx(c, p+4, q+16, 40, 24, '#98917f', 2);
+      for(let i=0;i<4;i++) bx(c, p+5+i*10, q+10, 7, 7, '#a8a18e', 1);
+      c.strokeStyle='#7d7668'; c.lineWidth=1;
+      c.beginPath(); c.moveTo(p+4,q+28); c.lineTo(p+44,q+28); c.stroke();
+      break;
+    case 'templo':
+      bx(c, p+8, q+38, 32, 4, '#c9c2b0', 1);
+      bx(c, p+11, q+18, 5, 20, '#d8d2c0', 1); bx(c, p+21.5, q+18, 5, 20, '#d8d2c0', 1); bx(c, p+32, q+18, 5, 20, '#d8d2c0', 1);
+      btr(c, m, q+4, p+5, q+18, p+43, q+18, '#e0dac8');
+      break;
+    case 'herreria':
+      bx(c, p+10, q+30, 12, 10, '#5d4326', 2);
+      bx(c, p+8, q+22, 22, 8, '#3a3a3d', 2);
+      bx(c, p+13, q+16, 8, 6, '#3a3a3d', 1);
+      bcir(c, p+34, q+30, 6, '#e07a2a'); bcir(c, p+34, q+30, 3, '#f6c04a');
+      break;
+    case 'biblioteca':
+      bx(c, p+8, q+10, 32, 32, '#8a6636', 3);
+      for(let i=0;i<3;i++){
+        bx(c, p+12, q+14+i*9, 24, 7, '#5d4326', 1);
+        const cols=['#c94f3f','#4a7fae','#7fae4a','#e8c06a'];
+        for(let j=0;j<4;j++) bx(c, p+13+j*6, q+15+i*9, 4, 5, cols[(i+j)%4], 0);
+      }
+      break;
+    case 'acueducto':
+      bx(c, p+4, q+12, 40, 8, '#c9c2b0', 2);
+      bx(c, p+6, q+20, 8, 22, '#b8b1a0', 1); bx(c, p+20, q+20, 8, 22, '#b8b1a0', 1); bx(c, p+34, q+20, 8, 22, '#b8b1a0', 1);
+      c.fillStyle='#4a7fae'; c.fillRect(p+5, q+13, 38, 3);
+      break;
+    case 'universidad':
+      bx(c, p+6, q+20, 36, 22, '#d8d2c0', 2);
+      bx(c, p+10, q+24, 6, 18, '#c0baa8', 1); bx(c, p+21, q+24, 6, 18, '#c0baa8', 1); bx(c, p+32, q+24, 6, 18, '#c0baa8', 1);
+      btr(c, m, q+6, p+3, q+20, p+45, q+20, '#e0dac8');
+      bcir(c, m, q+14, 3, '#e8c06a');
+      break;
+    case 'castillo':
+      bx(c, p+8, q+16, 10, 26, '#8d8674', 2); bx(c, p+30, q+16, 10, 26, '#8d8674', 2);
+      bx(c, p+14, q+22, 20, 20, '#98917f', 2);
+      for(let i=0;i<2;i++){ bx(c, p+8+i*22, q+11, 4, 6, '#98917f', 1); bx(c, p+14+i*22, q+11, 4, 6, '#98917f', 1); }
+      bx(c, p+20, q+30, 8, 12, '#2c2419', 3);
+      c.strokeStyle='#c94f3f'; c.lineWidth=1.5;
+      c.beginPath(); c.moveTo(m, q+6); c.lineTo(m, q+16); c.stroke();
+      btr(c, m, q+6, m+8, q+8.5, m, q+11, '#c94f3f');
+      break;
+    case 'cuartel':
+      bx(c, p+6, q+20, 36, 22, '#8a5a30', 3);
+      btr(c, m, q+8, p+3, q+22, p+45, q+22, '#6e4523');
+      bx(c, p+20, q+30, 8, 12, '#3a2413', 2);
+      c.strokeStyle='#b9bec4'; c.lineWidth=2;
+      c.beginPath(); c.moveTo(p+36, q+26); c.lineTo(p+42, q+14); c.stroke();
+      btr(c, p+42, q+14, p+44, q+10, p+39, q+12, '#d4d8dc');
+      break;
+    case 'maravilla':
+      bx(c, p+10, q+38, 28, 5, '#c9a55a', 1);
+      bx(c, p+14, q+33, 20, 5, '#d8b96a', 1);
+      btr(c, m, q+2, p+18, q+33, p+30, q+33, '#e8c06a');
+      btr(c, m, q+8, p+21, q+30, p+27, q+30, '#f6e2a0');
+      bcir(c, m, q+4, 2.5, '#fff8dc');
+      break;
+    default:
+      bx(c, p+10, q+16, 28, 26, '#8a7660', 3);
+      btr(c, m, q+4, p+7, q+18, p+41, q+18, '#9c5a3c');
+  }
+  // nivel: rombos dorados
+  const lv=(b.lvl||1);
+  if(lv>1){
+    c.fillStyle='#e8c06a';
+    for(let i=0;i<lv-1;i++){
+      const dx=m+(i-(lv-2)/2)*9;
+      c.beginPath();
+      c.moveTo(dx, q-2); c.lineTo(dx+3.5, q+2); c.lineTo(dx, q+6); c.lineTo(dx-3.5, q+2);
+      c.closePath(); c.fill();
+    }
+  }
+}
+function drawEnemyBuilding(c, eb){
+  const p=eb.x*TILE_PX, q=eb.y*TILE_PX, m=p+24;
+  shadowEll(c, m, q+42, 17, 5, .25);
+  if(eb.id==='etc'){
+    bx(c, p+8, q+16, 32, 26, '#5a3030', 3);
+    btr(c, m, q+2, p+4, q+18, p+44, q+18, '#421f1f');
+    bx(c, p+20, q+30, 8, 12, '#1c0d0a', 2);
+    c.strokeStyle='#c94f3f'; c.lineWidth=1.5;
+    c.beginPath(); c.moveTo(m, q-4); c.lineTo(m, q+4); c.stroke();
+    btr(c, m, q-4, m+9, q-1.5, m, q+1, '#c94f3f');
+  } else if(eb.id==='etower'){
+    bx(c, p+16, q+14, 16, 28, '#4a3232', 2);
+    bx(c, p+12, q+6, 24, 10, '#5a3c3c', 2);
+    bx(c, p+22, q+22, 4, 8, '#1c0d0a', 1);
+  } else {
+    bcir(c, m, q+30, 11, '#4f3232');
+    btr(c, m, q+8, p+9, q+26, p+39, q+26, '#5f3a3a');
+    bx(c, m-4, q+31, 8, 11, '#1c0d0a', 3);
+  }
+}
+
+/* ---------- Arte vectorial del terreno ---------- */
+function h2(x,y){ return ((Math.imul(x+13,374761393) ^ Math.imul(y+7,668265263))>>>8); }
+function shadowEll(c,x,y,rx,ry,a){
+  c.fillStyle=`rgba(0,0,0,${a})`;
+  c.beginPath(); c.ellipse(x,y,rx,ry,0,0,Math.PI*2); c.fill();
+}
+function tri(c,cx,topY,halfW,h,col){
+  c.fillStyle=col;
+  c.beginPath();
+  c.moveTo(cx,topY); c.lineTo(cx-halfW,topY+h); c.lineTo(cx+halfW,topY+h);
+  c.closePath(); c.fill();
+}
+function drawTree(px,py,hh,full){
+  const s=0.75+0.35*full;
+  const cx=px+24+((hh%5)-2), base=py+40+((hh>>4)%3)-1;
+  shadowEll(sctx,cx,base+1,12*s,4*s,.22);
+  sctx.fillStyle='#6b4a2a';
+  sctx.fillRect(cx-2, base-5, 4, 7);
+  const G=[['#26521f','#347030','#478a41'],
+           ['#2b5427','#3a7336','#4e8f47'],
+           ['#234d21','#31672e','#44813e']][hh%3];
+  tri(sctx,cx,base-26*s,15*s,22*s,G[0]);
+  tri(sctx,cx,base-35*s,12*s,19*s,G[1]);
+  tri(sctx,cx,base-43*s,8.5*s,16*s,G[2]);
+  if(season()===3){   // nieve en las copas
+    tri(sctx,cx,base-43*s,7*s,9*s,'rgba(245,250,255,.85)');
+    tri(sctx,cx,base-35*s,9*s,8*s,'rgba(245,250,255,.55)');
+  }
+}
+function drawStone(px,py,hh,full){
+  const s=0.7+0.4*full, cx=px+24+((hh%3)-1), cy=py+27;
+  shadowEll(sctx,cx,cy+8*s,13*s,4.5*s,.22);
+  sctx.fillStyle='#7e837c';
+  sctx.beginPath();
+  sctx.moveTo(cx-12*s,cy+7*s); sctx.lineTo(cx-9*s,cy-6*s); sctx.lineTo(cx-1*s,cy-11*s);
+  sctx.lineTo(cx+9*s,cy-5*s); sctx.lineTo(cx+12*s,cy+7*s);
+  sctx.closePath(); sctx.fill();
+  sctx.fillStyle='#9aa094';
+  sctx.beginPath();
+  sctx.moveTo(cx-9*s,cy-6*s); sctx.lineTo(cx-1*s,cy-11*s); sctx.lineTo(cx+9*s,cy-5*s); sctx.lineTo(cx-1*s,cy-2*s);
+  sctx.closePath(); sctx.fill();
+  sctx.fillStyle='#878b81';
+  sctx.beginPath(); sctx.ellipse(cx+11*s, cy+6*s, 4*s, 3*s, 0, 0, Math.PI*2); sctx.fill();
+}
+function drawGold(px,py,hh,full){
+  drawStone(px,py,hh,full);
+  const s=0.7+0.4*full, cx=px+24+((hh%3)-1), cy=py+27;
+  sctx.fillStyle='#e8c06a';
+  sctx.beginPath(); sctx.ellipse(cx-4*s,cy-3*s,3.2*s,2.4*s,0.4,0,Math.PI*2); sctx.fill();
+  sctx.beginPath(); sctx.ellipse(cx+4*s,cy+1*s,2.6*s,2*s,-0.4,0,Math.PI*2); sctx.fill();
+  sctx.fillStyle='#f6e2a0';
+  sctx.fillRect(cx-1, cy-9*s, 2, 6);
+  sctx.fillRect(cx-3, cy-7*s, 6, 2);
+}
+function drawBerry(px,py,hh,full){
+  const s=0.7+0.4*full, cx=px+24+((hh%5)-2), cy=py+29;
+  shadowEll(sctx,cx,cy+6*s,12*s,4*s,.20);
+  sctx.fillStyle='#3c6a2f';
+  sctx.beginPath(); sctx.ellipse(cx-5*s,cy-2*s,8.5*s,7*s,0,0,Math.PI*2); sctx.fill();
+  sctx.fillStyle='#487c39';
+  sctx.beginPath(); sctx.ellipse(cx+5*s,cy-4*s,8.5*s,7*s,0,0,Math.PI*2); sctx.fill();
+  sctx.fillStyle='#a83d7f';
+  const pts=[[-7,-4],[-2,-8],[3,-2],[7,-6],[0,0],[-4,2],[6,1]];
+  for(let i=0;i<pts.length;i++){
+    if(i>4 && (hh>>i)%2===0) continue;
+    sctx.beginPath(); sctx.arc(cx+pts[i][0]*s, cy+pts[i][1]*s, 2.1*s, 0, Math.PI*2); sctx.fill();
+  }
+  sctx.fillStyle='rgba(255,220,240,.8)';
+  sctx.beginPath(); sctx.arc(cx-7.6*s, cy-4.7*s, 0.9, 0, Math.PI*2); sctx.fill();
+}
+function redrawStatic(){
+  staticDirty=false;
+  waterTiles=[];
+  const isLand=(x,y)=>inB(x,y) && tiles[idx(x,y)].t!==T_WATER;
+  // hierba con tonos variados (paleta según la estación)
+  const sIdx=season();
+  const grassTones=SEASON_GRASS[sIdx];
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const px=x*TILE_PX, py=y*TILE_PX;
+    sctx.fillStyle=grassTones[((Math.imul(x+7,374761393) ^ Math.imul(y+11,668265263))>>>8)%grassTones.length];
+    sctx.fillRect(px,py,TILE_PX,TILE_PX);
+    const hh=h2(x,y);
+    if(hh%3===0){
+      sctx.fillStyle='rgba(255,255,210,0.05)';
+      sctx.fillRect(px+8+(hh%9), py+10+((hh>>5)%9), 4, 2);
+      sctx.fillRect(px+26+((hh>>3)%7), py+29+((hh>>7)%7), 4, 2);
+    }
+    if(sIdx===3 && hh%2===0){   // copos de nieve en invierno
+      sctx.fillStyle='rgba(255,255,255,0.55)';
+      sctx.fillRect(px+6+(hh%33), py+5+((hh>>6)%35), 2, 2);
+    }
+    if(sIdx!==3 && hh%17===0){   // florecillas
+      sctx.fillStyle=['#d8c86a','#c88ab0','#d8d8d8'][hh%3];
+      sctx.fillRect(px+10+(hh%23), py+12+((hh>>4)%23), 2, 2);
+    }
+    // caminos desgastados por el paso
+    const w=wear[idx(x,y)];
+    if(w>6 && tiles[idx(x,y)].t===T_GRASS){
+      sctx.fillStyle=`rgba(148,116,74,${Math.min(.42,(w-6)/90)})`;
+      sctx.beginPath(); sctx.ellipse(px+24, py+24, 18, 15, 0, 0, Math.PI*2); sctx.fill();
+    }
+  }
+  // agua con esquinas redondeadas y profundidad
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(tiles[idx(x,y)].t!==T_WATER) continue;
+    const px=x*TILE_PX, py=y*TILE_PX;
+    const lN=isLand(x,y-1), lS=isLand(x,y+1), lW=isLand(x-1,y), lE=isLand(x+1,y);
+    const shore = lN||lS||lW||lE;
+    sctx.fillStyle = shore ? '#2e5478' : '#284a6c';
+    sctx.beginPath();
+    sctx.roundRect(px,py,TILE_PX,TILE_PX,[lN&&lW?15:0, lN&&lE?15:0, lS&&lE?15:0, lS&&lW?15:0]);
+    sctx.fill();
+    if(shore){
+      sctx.fillStyle='rgba(210,226,205,0.28)';
+      if(lN) sctx.fillRect(px+(lW?14:0), py, TILE_PX-(lW?14:0)-(lE?14:0), 2.5);
+      if(lS) sctx.fillRect(px+(lW?14:0), py+TILE_PX-2.5, TILE_PX-(lW?14:0)-(lE?14:0), 2.5);
+      if(lW) sctx.fillRect(px, py+(lN?14:0), 2.5, TILE_PX-(lN?14:0)-(lS?14:0));
+      if(lE) sctx.fillRect(px+TILE_PX-2.5, py+(lN?14:0), 2.5, TILE_PX-(lN?14:0)-(lS?14:0));
+    }
+    waterTiles.push([x,y]);
+  }
+  sctx.textAlign='center'; sctx.textBaseline='middle';
+  // recursos del terreno (arte vectorial)
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    const c=tiles[idx(x,y)];
+    if(!RES_OF_T[c.t]) continue;
+    const full=Math.min(1, c.amt/T_AMT[c.t]);
+    const px=x*TILE_PX, py=y*TILE_PX, hh=h2(x,y);
+    if(c.t===T_TREE) drawTree(px,py,hh,full);
+    else if(c.t===T_STONE) drawStone(px,py,hh,full);
+    else if(c.t===T_GOLD) drawGold(px,py,hh,full);
+    else if(c.t===T_BERRY) drawBerry(px,py,hh,full);
+  }
+  // edificios (arte vectorial, cada uno con silueta propia)
+  for(const b of S.builds) drawBuilding(sctx, b);
+  // poblado enemigo (modo Conquista)
+  if(S.enemyBuilds) for(const eb of S.enemyBuilds) drawEnemyBuilding(sctx, eb);
+}
+
+function draw(){
+  if(staticDirty) redrawStatic();
+  ctx2d.setTransform(1,0,0,1,0,0);
+  ctx2d.fillStyle='#1c2e16';
+  ctx2d.fillRect(0,0,canvas.width,canvas.height);
+  const s=cam.z*dpr;
+  ctx2d.setTransform(s,0,0,s, -cam.x*s, -cam.y*s);
+  ctx2d.imageSmoothingEnabled = cam.z<1;
+  ctx2d.drawImage(SC,0,0);
+  // destellos animados en el agua
+  const wt=performance.now()/700;
+  for(const [wx,wy] of waterTiles){
+    const a=0.045+0.045*Math.sin(wt+(wx+wy)*0.9);
+    ctx2d.fillStyle=`rgba(255,255,255,${a.toFixed(3)})`;
+    ctx2d.fillRect(wx*TILE_PX+4, wy*TILE_PX+6+((wx*7+wy*13)%3)*13, TILE_PX-8, 3);
+  }
+  // tinte de la estación
+  const seasonTint=SEASONS[season()].tint;
+  if(seasonTint){
+    ctx2d.fillStyle=seasonTint;
+    ctx2d.fillRect(0,0,W*TILE_PX,H*TILE_PX);
+  }
+  // sombras de nubes a la deriva
+  const ct=performance.now()/1000;
+  ctx2d.fillStyle='rgba(8,12,6,0.07)';
+  for(let i=0;i<3;i++){
+    const span=W*TILE_PX+560;
+    const cnx=(((ct*(8+i*5)) + i*570) % span) - 280;
+    const cny=((i*467+130)%(H*TILE_PX));
+    ctx2d.beginPath();
+    ctx2d.ellipse(cnx, cny, 150, 80, 0, 0, Math.PI*2);
+    ctx2d.ellipse(cnx+95, cny+35, 105, 60, 0, 0, Math.PI*2);
+    ctx2d.fill();
+  }
+  if(fog){
+    if(fogDirty) redrawFog();
+    ctx2d.drawImage(FC2,0,0);
+  }
+  // pájaros cruzando el cielo
+  ctx2d.strokeStyle='#181510'; ctx2d.lineWidth=1.8;
+  for(const b of birds){
+    const flap=Math.sin(performance.now()/90+b.o)*2;
+    ctx2d.beginPath();
+    ctx2d.moveTo(b.x-5, b.y+flap);
+    ctx2d.quadraticCurveTo(b.x-2.5, b.y-3, b.x, b.y);
+    ctx2d.quadraticCurveTo(b.x+2.5, b.y-3, b.x+5, b.y+flap);
+    ctx2d.stroke();
+  }
+  // viñeta en los bordes del mundo
+  const mw=W*TILE_PX, mh=H*TILE_PX, vg=80;
+  const grads=[
+    [0,0,vg,0, 0,0,vg,mh],[mw,0,mw-vg,0, mw-vg,0,vg,mh],
+    [0,0,0,vg, 0,0,mw,vg],[0,mh,0,mh-vg, 0,mh-vg,mw,vg],
+  ];
+  for(const [gx1,gy1,gx2,gy2, rx,ry,rw,rh] of grads){
+    const g=ctx2d.createLinearGradient(gx1,gy1,gx2,gy2);
+    g.addColorStop(0,'rgba(10,8,4,.45)');
+    g.addColorStop(1,'rgba(10,8,4,0)');
+    ctx2d.fillStyle=g;
+    ctx2d.fillRect(rx,ry,rw,rh);
+  }
+  ctx2d.textAlign='center'; ctx2d.textBaseline='middle';
+
+  // selección
+  if(selected){
+    const pulse=0.6+0.4*Math.sin(performance.now()/300);
+    ctx2d.strokeStyle=`rgba(232,192,106,${pulse})`;
+    ctx2d.lineWidth=3;
+    ctx2d.strokeRect(selected.x*TILE_PX+2, selected.y*TILE_PX+2, TILE_PX-4, TILE_PX-4);
+  }
+  // modo colocación: sombreado de casillas válidas
+  if(placing){
+    ctx2d.fillStyle='rgba(127,196,106,.22)';
+    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+      if(!placeError(placing,x,y)) ctx2d.fillRect(x*TILE_PX+2,y*TILE_PX+2,TILE_PX-4,TILE_PX-4);
+    }
+  }
+  // aldeanos (dibujados, túnica según oficio)
+  const JOB_COLORS={comida:'#c05a41', madera:'#8f6f42', piedra:'#8b9095', oro:'#d9a93c'};
+  const nowT=performance.now();
+  for(const v of villagers){
+    ctx2d.fillStyle='rgba(0,0,0,.28)';
+    ctx2d.beginPath();
+    ctx2d.ellipse(v.px, v.py+4, 6.5, 2.6, 0, 0, Math.PI*2);
+    ctx2d.fill();
+    const walking = v.state==='to'||v.state==='back'||v.state==='home'||v.state==='explore'||v.state==='hunt';
+    const bob = walking ? Math.abs(Math.sin(nowT/130+v.px))*-1.6 : 0;
+    const x=v.px, y=v.py+bob;
+    // piernas
+    ctx2d.strokeStyle='#3d2c1c'; ctx2d.lineWidth=2;
+    ctx2d.beginPath();
+    if(walking){
+      const ph=Math.sin(nowT/130+v.px)*3;
+      ctx2d.moveTo(x-1.5,y-4); ctx2d.lineTo(x-1.5+ph, y+3.5);
+      ctx2d.moveTo(x+1.5,y-4); ctx2d.lineTo(x+1.5-ph, y+3.5);
+    } else {
+      ctx2d.moveTo(x-1.8,y-4); ctx2d.lineTo(x-1.8, y+3.5);
+      ctx2d.moveTo(x+1.8,y-4); ctx2d.lineTo(x+1.8, y+3.5);
+    }
+    ctx2d.stroke();
+    // túnica
+    ctx2d.fillStyle=JOB_COLORS[v.job]||'#7d92a0';
+    ctx2d.beginPath();
+    ctx2d.roundRect(x-4.5, y-14, 9, 11, [4,4,2,2]);
+    ctx2d.fill();
+    ctx2d.strokeStyle='rgba(0,0,0,.35)'; ctx2d.lineWidth=1;
+    ctx2d.stroke();
+    // cabeza y pelo
+    ctx2d.fillStyle='#e9c49c';
+    ctx2d.beginPath(); ctx2d.arc(x, y-17, 3.8, 0, Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='#5b4128';
+    ctx2d.beginPath(); ctx2d.arc(x, y-18, 3.4, Math.PI, 2*Math.PI); ctx2d.fill();
+    if(v.carry>0.5 && v.carryRes){
+      // fardo del color del recurso
+      ctx2d.fillStyle=RES_ACCENT[v.carryRes];
+      ctx2d.beginPath(); ctx2d.arc(x+7.5, y-19, 4, 0, Math.PI*2); ctx2d.fill();
+      ctx2d.strokeStyle='rgba(0,0,0,.4)'; ctx2d.lineWidth=1; ctx2d.stroke();
+    } else if(v.state==='gather'){
+      // pico balanceándose
+      const ang=-1.1+Math.sin(nowT/140)*0.7;
+      const hx=x+6, hy=y-9;
+      ctx2d.strokeStyle='#5d4326'; ctx2d.lineWidth=2;
+      ctx2d.beginPath();
+      ctx2d.moveTo(hx, hy);
+      ctx2d.lineTo(hx+Math.cos(ang)*9, hy+Math.sin(ang)*9);
+      ctx2d.stroke();
+      ctx2d.fillStyle='#9ba0a5';
+      ctx2d.beginPath(); ctx2d.arc(hx+Math.cos(ang)*9, hy+Math.sin(ang)*9, 2.2, 0, Math.PI*2); ctx2d.fill();
+    }
+  }
+  // alcance de la torre/castillo seleccionado
+  if(ctxState && ctxState.kind==='build'){
+    const atk=BLD[ctxState.b.id].attack;
+    if(atk){
+      ctx2d.strokeStyle='rgba(232,192,106,.5)';
+      ctx2d.setLineDash([6,6]);
+      ctx2d.lineWidth=2;
+      ctx2d.beginPath();
+      ctx2d.arc((ctxState.b.x+0.5)*TILE_PX, (ctxState.b.y+0.5)*TILE_PX, (atk.range+0.5*((ctxState.b.lvl||1)-1))*TILE_PX, 0, Math.PI*2);
+      ctx2d.stroke();
+      ctx2d.setLineDash([]);
+    }
+  }
+  // flechas de las defensas
+  const nowMs=performance.now();
+  shots=shots.filter(s=>s.until>nowMs);
+  ctx2d.lineWidth=2;
+  for(const s of shots){
+    ctx2d.strokeStyle = s.foe ? 'rgba(224,90,70,.9)' : 'rgba(232,192,106,.9)';
+    ctx2d.beginPath();
+    ctx2d.moveTo(s.x1,s.y1);
+    ctx2d.lineTo(s.x2,s.y2);
+    ctx2d.stroke();
+  }
+  // fauna (solo en terreno descubierto)
+  for(const a of animals){
+    const atx=Math.floor(a.px/TILE_PX), aty=Math.floor(a.py/TILE_PX);
+    if(fog && inB(atx,aty) && !fog[idx(atx,aty)]) continue;
+    ctx2d.fillStyle='rgba(0,0,0,.22)';
+    ctx2d.beginPath();
+    ctx2d.ellipse(a.px, a.py+4, 7, 2.5, 0, 0, Math.PI*2);
+    ctx2d.fill();
+    const ax=a.px, ay=a.py;
+    const step2=Math.sin(performance.now()/160+ax)*1.5;
+    if(a.kind==='deer'){
+      ctx2d.strokeStyle='#7a5232'; ctx2d.lineWidth=1.8;
+      ctx2d.beginPath();
+      ctx2d.moveTo(ax-4, ay-3); ctx2d.lineTo(ax-4+step2, ay+3);
+      ctx2d.moveTo(ax+4, ay-3); ctx2d.lineTo(ax+4-step2, ay+3);
+      ctx2d.stroke();
+      ctx2d.fillStyle='#a97b4f';
+      ctx2d.beginPath(); ctx2d.ellipse(ax, ay-6, 7, 4.5, 0, 0, Math.PI*2); ctx2d.fill();
+      ctx2d.beginPath(); ctx2d.arc(ax+7, ay-10, 3, 0, Math.PI*2); ctx2d.fill();
+      ctx2d.strokeStyle='#6e4a28'; ctx2d.lineWidth=1.4;
+      ctx2d.beginPath();
+      ctx2d.moveTo(ax+7, ay-12); ctx2d.lineTo(ax+5, ay-17); ctx2d.moveTo(ax+6, ay-15); ctx2d.lineTo(ax+3.5, ay-16.5);
+      ctx2d.moveTo(ax+8, ay-12); ctx2d.lineTo(ax+10, ay-17); ctx2d.moveTo(ax+9, ay-15); ctx2d.lineTo(ax+11.5, ay-16.5);
+      ctx2d.stroke();
+      ctx2d.fillStyle='#e8ddc8';
+      ctx2d.beginPath(); ctx2d.arc(ax-7, ay-7, 1.6, 0, Math.PI*2); ctx2d.fill();
+    } else {
+      ctx2d.strokeStyle='#4a4a46'; ctx2d.lineWidth=1.8;
+      ctx2d.beginPath();
+      ctx2d.moveTo(ax-4, ay-2); ctx2d.lineTo(ax-4+step2, ay+3);
+      ctx2d.moveTo(ax+4, ay-2); ctx2d.lineTo(ax+4-step2, ay+3);
+      ctx2d.stroke();
+      ctx2d.fillStyle='#6e6e6a';
+      ctx2d.beginPath(); ctx2d.ellipse(ax, ay-5, 7.5, 4, 0, 0, Math.PI*2); ctx2d.fill();
+      ctx2d.beginPath(); ctx2d.arc(ax+7, ay-8, 3.2, 0, Math.PI*2); ctx2d.fill();
+      btr(ctx2d, ax+5, ay-11, ax+7, ay-14, ax+8.5, ay-10.5, '#5d5d59');
+      btr(ctx2d, ax+8, ay-11, ax+10, ay-13.5, ax+11, ay-10, '#5d5d59');
+      ctx2d.strokeStyle='#5d5d59'; ctx2d.lineWidth=2.5;
+      ctx2d.beginPath(); ctx2d.moveTo(ax-7, ay-6); ctx2d.quadraticCurveTo(ax-12, ay-9, ax-13, ay-4); ctx2d.stroke();
+      ctx2d.fillStyle='#c94f3f';
+      ctx2d.beginPath(); ctx2d.arc(ax+9, ay-8.5, 1, 0, Math.PI*2); ctx2d.fill();
+    }
+  }
+  // soldados (azules, con casco)
+  for(const s of soldiers){
+    const u=UNITS[s.kind];
+    ctx2d.fillStyle='rgba(0,0,0,.28)';
+    ctx2d.beginPath(); ctx2d.ellipse(s.px, s.py+4, 6.5, 2.6, 0, 0, Math.PI*2); ctx2d.fill();
+    const sb=Math.abs(Math.sin(nowT/125+s.px))*-1.4;
+    const sx2=s.px, sy2=s.py+sb;
+    ctx2d.strokeStyle='#2c2c30'; ctx2d.lineWidth=2;
+    const sph=Math.sin(nowT/125+s.px)*2.5;
+    ctx2d.beginPath();
+    ctx2d.moveTo(sx2-1.5,sy2-4); ctx2d.lineTo(sx2-1.5+sph, sy2+3.5);
+    ctx2d.moveTo(sx2+1.5,sy2-4); ctx2d.lineTo(sx2+1.5-sph, sy2+3.5);
+    ctx2d.stroke();
+    ctx2d.fillStyle='#3f5d8f';
+    ctx2d.beginPath(); ctx2d.roundRect(sx2-4.5, sy2-14, 9, 11, [4,4,2,2]); ctx2d.fill();
+    ctx2d.strokeStyle='rgba(0,0,0,.4)'; ctx2d.lineWidth=1; ctx2d.stroke();
+    ctx2d.fillStyle='#e9c49c';
+    ctx2d.beginPath(); ctx2d.arc(sx2, sy2-17, 3.8, 0, Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='#9ba0a5';   // casco
+    ctx2d.beginPath(); ctx2d.arc(sx2, sy2-18, 3.6, Math.PI, 2*Math.PI); ctx2d.fill();
+    // arma
+    ctx2d.strokeStyle='#b9bec4'; ctx2d.lineWidth=1.6;
+    ctx2d.beginPath();
+    if(s.kind==='arq'){
+      ctx2d.arc(sx2+6, sy2-9, 5, -Math.PI/2.6, Math.PI/2.6);
+    } else {
+      ctx2d.moveTo(sx2+5, sy2-2); ctx2d.lineTo(sx2+8, sy2-19);
+    }
+    ctx2d.stroke();
+    if(s.hp<u.hp){
+      const w2=16, f=Math.max(0,s.hp/u.hp);
+      ctx2d.fillStyle='rgba(0,0,0,.5)'; ctx2d.fillRect(sx2-w2/2, sy2-25, w2, 3);
+      ctx2d.fillStyle='#6fa8ff'; ctx2d.fillRect(sx2-w2/2, sy2-25, w2*f, 3);
+    }
+  }
+  // vida de los edificios enemigos dañados
+  if(S.enemyBuilds) for(const eb of S.enemyBuilds){
+    if(eb.hp>=eb.max) continue;
+    if(fog && !fog[idx(eb.x,eb.y)]) continue;
+    const bx3=eb.x*TILE_PX+4, by3=eb.y*TILE_PX-6;
+    ctx2d.fillStyle='rgba(0,0,0,.55)'; ctx2d.fillRect(bx3, by3, 40, 5);
+    ctx2d.fillStyle='#e07a5f'; ctx2d.fillRect(bx3, by3, 40*Math.max(0,eb.hp/eb.max), 5);
+  }
+  // invasores (solo en terreno descubierto)
+  for(const e of enemies){
+    const etx=Math.floor(e.px/TILE_PX), ety=Math.floor(e.py/TILE_PX);
+    if(fog && inB(etx,ety) && !fog[idx(etx,ety)]) continue;
+    ctx2d.fillStyle='rgba(0,0,0,.28)';
+    ctx2d.beginPath();
+    ctx2d.ellipse(e.px, e.py+4, 7, 2.8, 0, 0, Math.PI*2);
+    ctx2d.fill();
+    const eb=Math.abs(Math.sin(performance.now()/100+e.px))*-1.6;
+    const ex=e.px, ey=e.py+eb;
+    // piernas
+    ctx2d.strokeStyle='#2c1d14'; ctx2d.lineWidth=2;
+    const eph=Math.sin(performance.now()/100+e.px)*3;
+    ctx2d.beginPath();
+    ctx2d.moveTo(ex-1.5,ey-4); ctx2d.lineTo(ex-1.5+eph, ey+3.5);
+    ctx2d.moveTo(ex+1.5,ey-4); ctx2d.lineTo(ex+1.5-eph, ey+3.5);
+    ctx2d.stroke();
+    // cuerpo encapuchado rojo oscuro
+    ctx2d.fillStyle='#6d2019';
+    ctx2d.beginPath();
+    ctx2d.roundRect(ex-5, ey-14, 10, 11, [4,4,2,2]);
+    ctx2d.fill();
+    ctx2d.strokeStyle='rgba(0,0,0,.45)'; ctx2d.lineWidth=1;
+    ctx2d.stroke();
+    // capucha
+    ctx2d.fillStyle='#4a1712';
+    ctx2d.beginPath(); ctx2d.arc(ex, ey-16.5, 4.2, 0, Math.PI*2); ctx2d.fill();
+    ctx2d.fillStyle='#1c0d0a';
+    ctx2d.beginPath(); ctx2d.arc(ex, ey-16, 2.4, 0, Math.PI*2); ctx2d.fill();
+    // arma
+    ctx2d.strokeStyle='#b9bec4'; ctx2d.lineWidth=1.6;
+    ctx2d.beginPath();
+    ctx2d.moveTo(ex+5, ey-4); ctx2d.lineTo(ex+9, ey-13);
+    ctx2d.stroke();
+    // barra de vida
+    const w=22, hpw=Math.max(0, w*e.hp/e.maxHp);
+    ctx2d.fillStyle='rgba(0,0,0,.5)';
+    ctx2d.fillRect(e.px-w/2, e.py-24, w, 4);
+    ctx2d.fillStyle= e.hp/e.maxHp>0.4 ? '#e07a5f' : '#c03a2a';
+    ctx2d.fillRect(e.px-w/2, e.py-24, hpw, 4);
+    if(e.loot>=1 && e.lootRes){
+      ctx2d.font='12px serif';
+      ctx2d.fillText(RES_META[e.lootRes].icon, e.px+10, e.py-16);
+    }
+  }
+  // vida del centro urbano (Supervivencia)
+  if(S.mode==='oleadas' && S.tcHp<tcMaxHp()){
+    const px=CX*TILE_PX, py=CY*TILE_PX;
+    const w=TILE_PX-8;
+    ctx2d.fillStyle='rgba(0,0,0,.6)';
+    ctx2d.fillRect(px+4, py-8, w, 6);
+    const frac=Math.max(0,S.tcHp/tcMaxHp());
+    ctx2d.fillStyle= frac>0.5 ? '#7fc46a' : frac>0.25 ? '#e8c06a' : '#e07a5f';
+    ctx2d.fillRect(px+4, py-8, w*frac, 6);
+  }
+  requestAnimationFrame(draw);
+}
+
+/* ---------------- Minimapa ---------------- */
+const mmc=document.getElementById('minimap');
+const mmx=mmc.getContext('2d');
+const MM=104/W;   // píxeles del minimapa por casilla
+const MM_COL={[T_GRASS]:'#3f5c2d',[T_WATER]:'#2b4d6e',[T_TREE]:'#26521f',[T_BERRY]:'#7a3560',[T_STONE]:'#7d838a',[T_GOLD]:'#c9a03f'};
+function drawMinimap(){
+  if(!tiles) return;
+  mmx.fillStyle='#0d0a06';
+  mmx.fillRect(0,0,104,104);
+  for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+    if(fog && !fog[idx(x,y)]) continue;
+    mmx.fillStyle=MM_COL[tiles[idx(x,y)].t]||'#3f5c2d';
+    mmx.fillRect(x*MM, y*MM, MM+0.5, MM+0.5);
+  }
+  for(const b of S.builds){
+    mmx.fillStyle = b.id==='ayunta' ? '#ffe9a0' : '#e8c06a';
+    mmx.fillRect(b.x*MM-0.5, b.y*MM-0.5, MM+1, MM+1);
+  }
+  if(S.enemyBuilds) for(const eb of S.enemyBuilds){
+    if(fog && !fog[idx(eb.x,eb.y)]) continue;
+    mmx.fillStyle='#c0392b';
+    mmx.fillRect(eb.x*MM-0.5, eb.y*MM-0.5, MM+1, MM+1);
+  }
+  mmx.fillStyle='#e8f4ff';
+  for(const v of villagers) mmx.fillRect(v.px/TILE_PX*MM-1, v.py/TILE_PX*MM-1, 2, 2);
+  mmx.fillStyle='#6fa8ff';
+  for(const s of soldiers) mmx.fillRect(s.px/TILE_PX*MM-1, s.py/TILE_PX*MM-1, 2.5, 2.5);
+  mmx.fillStyle='#ff5340';
+  for(const e of enemies){
+    const ex=Math.floor(e.px/TILE_PX), ey=Math.floor(e.py/TILE_PX);
+    if(fog && inB(ex,ey) && !fog[idx(ex,ey)]) continue;
+    mmx.fillRect(e.px/TILE_PX*MM-1.5, e.py/TILE_PX*MM-1.5, 3, 3);
+  }
+  // marco de la cámara
+  mmx.strokeStyle='rgba(255,255,255,.75)';
+  mmx.lineWidth=1;
+  mmx.strokeRect(cam.x/TILE_PX*MM, cam.y/TILE_PX*MM, cw/cam.z/TILE_PX*MM, ch/cam.z/TILE_PX*MM);
+}
+setInterval(drawMinimap, 400);
+mmc.addEventListener('pointerdown', e=>{
+  e.stopPropagation();
+  const r=mmc.getBoundingClientRect();
+  const tx=(e.clientX-r.left)/r.width*W, ty=(e.clientY-r.top)/r.height*H;
+  cam.x=tx*TILE_PX - cw/cam.z/2;
+  cam.y=ty*TILE_PX - ch/cam.z/2;
+  clampCam();
+});
+
+/* ---------------- Entrada (pan / zoom / tap) ---------------- */
+const pointers=new Map();
+let dragMoved=false, pinch0=null;
+canvas.addEventListener('pointerdown', e=>{
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY});
+  if(pointers.size===1) dragMoved=false;
+  if(pointers.size===2){
+    const ps=[...pointers.values()];
+    pinch0={d:Math.hypot(ps[0].x-ps[1].x, ps[0].y-ps[1].y), z:cam.z};
+  }
+});
+canvas.addEventListener('pointermove', e=>{
+  const p=pointers.get(e.pointerId);
+  if(!p) return;
+  const dx=e.clientX-p.x, dy=e.clientY-p.y;
+  p.x=e.clientX; p.y=e.clientY;
+  if(Math.hypot(e.clientX-p.sx, e.clientY-p.sy)>8) dragMoved=true;
+  if(pointers.size===1){
+    cam.x-=dx/cam.z; cam.y-=dy/cam.z; clampCam();
+  } else if(pointers.size===2 && pinch0){
+    const ps=[...pointers.values()];
+    const d=Math.hypot(ps[0].x-ps[1].x, ps[0].y-ps[1].y);
+    const mx=(ps[0].x+ps[1].x)/2, my=(ps[0].y+ps[1].y)/2;
+    const rect=canvas.getBoundingClientRect();
+    const wx=(mx-rect.left)/cam.z+cam.x, wy=(my-rect.top)/cam.z+cam.y;
+    cam.z=pinch0.z*d/pinch0.d;
+    clampCam();
+    cam.x=wx-(mx-rect.left)/cam.z; cam.y=wy-(my-rect.top)/cam.z;
+    clampCam();
+  }
+});
+function endPointer(e){
+  const p=pointers.get(e.pointerId);
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) pinch0=null;
+  if(p && !dragMoved && pointers.size===0 && e.type==='pointerup'){
+    const rect=canvas.getBoundingClientRect();
+    const wx=(e.clientX-rect.left)/cam.z+cam.x;
+    const wy=(e.clientY-rect.top)/cam.z+cam.y;
+    handleTap(Math.floor(wx/TILE_PX), Math.floor(wy/TILE_PX));
+  }
+}
+canvas.addEventListener('pointerup', endPointer);
+canvas.addEventListener('pointercancel', endPointer);
+canvas.addEventListener('wheel', e=>{
+  e.preventDefault();
+  const rect=canvas.getBoundingClientRect();
+  const mx=e.clientX-rect.left, my=e.clientY-rect.top;
+  const wx=mx/cam.z+cam.x, wy=my/cam.z+cam.y;
+  cam.z*= e.deltaY<0 ? 1.15 : 0.87;
+  clampCam();
+  cam.x=wx-mx/cam.z; cam.y=wy-my/cam.z;
+  clampCam();
+},{passive:false});
+document.getElementById('z-in').onclick=()=>{ cam.z*=1.25; clampCam(); };
+document.getElementById('z-out').onclick=()=>{ cam.z*=0.8; clampCam(); };
+document.getElementById('z-home').onclick=centerCam;
+document.getElementById('place-cancel').onclick=stopPlacing;
+function cycleSpeed(){
+  S.speed = (S.speed||1)>=3 ? 1 : (S.speed||1)+1;
+  document.getElementById('z-speed').textContent='x'+S.speed;
+  toast('⏩ Velocidad x'+S.speed);
+}
+document.getElementById('z-speed').onclick=cycleSpeed;
+document.getElementById('army-flag').onclick=()=>{
+  S.stance = S.stance==='attack' ? 'home' : 'attack';
+  if(S.stance==='attack'){
+    toast('🗡️ ¡Tu ejército marcha hacia el enemigo!');
+    SFX.horn();
+  } else toast('🛡️ Tu ejército vuelve a defender la ciudad.');
+  for(const s of soldiers) s.path=null;
+  updateHUD();
+};
+
+/* ---------------- Atajos de teclado (PC) ---------------- */
+function toggleSheet(k){ if(sheetKind===k) closeSheet(); else openSheet(k); }
+window.addEventListener('keyup', e=>{ if(e.key==='Shift') shiftHeld=false; });
+window.addEventListener('keydown', e=>{
+  if(e.key==='Shift'){ shiftHeld=true; return; }
+  if(e.repeat || menuOpen || e.ctrlKey || e.metaKey || e.altKey) return;
+  const k=e.key.toLowerCase();
+  const pan=TILE_PX*2;
+  const nodeAssign=(d)=>{
+    if(ctxState && ctxState.kind==='node'){
+      const c=tiles[idx(ctxState.x, ctxState.y)];
+      const res=RES_OF_T[c.t];
+      if(res){ setAssign(res, d, {x:ctxState.x, y:ctxState.y}); return true; }
+    }
+    return false;
+  };
+  switch(k){
+    case 'b': toggleSheet('build'); break;
+    case 't': toggleSheet('tech'); break;
+    case 'm': toggleSheet('market'); break;
+    case 'a': toggleSheet('pop'); break;
+    case 'g': toggleSheet('more'); break;
+    case 'e': toggleSheet('age'); break;
+    case 'r': recruit(); break;
+    case 'f': cycleSpeed(); break;
+    case 'q':
+      if(lastPlacedDef && lastPlacedDef.age<=S.age && !(lastPlacedDef.max && buildCount(lastPlacedDef.id)>=lastPlacedDef.max)) startPlacing(lastPlacedDef);
+      break;
+    case 'h': case ' ': centerCam(); e.preventDefault(); break;
+    case 'escape':
+      if(placing) stopPlacing();
+      else if(sheetKind) closeSheet();
+      else closeCtx();
+      break;
+    case '+': case '=': if(!nodeAssign(1)){ cam.z*=1.25; clampCam(); } break;
+    case '-': case '_': if(!nodeAssign(-1)){ cam.z*=0.8; clampCam(); } break;
+    case 'arrowup':    cam.y-=pan; clampCam(); e.preventDefault(); break;
+    case 'arrowdown':  cam.y+=pan; clampCam(); e.preventDefault(); break;
+    case 'arrowleft':  cam.x-=pan; clampCam(); e.preventDefault(); break;
+    case 'arrowright': cam.x+=pan; clampCam(); e.preventDefault(); break;
+  }
+});
+
+function handleTap(tx,ty){
+  if(!inB(tx,ty)){ closeCtx(); return; }
+  if(placing){ tryPlace(tx,ty); return; }
+  if(fog && !fog[idx(tx,ty)]){ selected={x:tx,y:ty}; ctxState={kind:'explore', x:tx, y:ty}; refreshCtx(); return; }
+  // ¿animal en esa casilla?
+  const cxp=(tx+0.5)*TILE_PX, cyp=(ty+0.5)*TILE_PX;
+  const a=animals.find(a=>Math.hypot(a.px-cxp, a.py-cyp)<0.85*TILE_PX);
+  if(a){ selected={x:tx,y:ty}; ctxState={kind:'animal', a}; refreshCtx(); return; }
+  const b=buildingAt(tx,ty);
+  if(b){ selected={x:tx,y:ty}; openCtxBuilding(b); return; }
+  const eb=S.enemyBuilds && S.enemyBuilds.find(e=>e.x===tx&&e.y===ty);
+  if(eb){
+    selected={x:tx,y:ty};
+    ctxState={kind:'ebuild', eb};
+    refreshCtx();
+    return;
+  }
+  const c=tiles[idx(tx,ty)];
+  if(RES_OF_T[c.t] && c.amt>0){ selected={x:tx,y:ty}; openCtxNode(tx,ty); return; }
+  selected=null; closeCtx();
+}
+function exploreTo(x,y){
+  const v=villagers.find(v=>v.job===null && (v.state==='idle'||v.state==='home'));
+  if(!v){ toast('😴 Necesitas un aldeano libre (recluta uno o quítalo de una tarea).'); return; }
+  if(!goTo(v, x, y, 'explore')){ toast('🚫 El explorador no encuentra camino hasta allí.'); return; }
+  log('🔭 Un explorador parte hacia lo desconocido.');
+  closeCtx();
+}
+
+/* ---------------- Panel contextual ---------------- */
+const ctxEl=document.getElementById('ctx');
+let ctxState=null;
+function closeCtx(){ ctxEl.style.display='none'; ctxState=null; selected=null; }
+function openCtxNode(x,y){
+  ctxState={kind:'node', x, y};
+  refreshCtx();
+}
+function openCtxBuilding(b){
+  ctxState={kind:'build', b};
+  refreshCtx();
+}
+function refreshCtx(){
+  if(!ctxState) return;
+  ctxEl.style.display='block';
+  if(ctxState.kind==='explore'){
+    const libres=villagers.filter(v=>v.job===null && (v.state==='idle'||v.state==='home')).length;
+    ctxEl.innerHTML=`
+      <div class="c-head">
+        <span class="c-icon">🌫️</span>
+        <span class="c-title">Terreno inexplorado</span>
+        <button class="c-close">✕</button>
+      </div>
+      <div class="c-desc">Nadie sabe qué hay ahí. Envía un aldeano libre a descubrirlo — puede que encuentre tesoros…</div>
+      <div class="c-actions">
+        <button id="ctx-explore" ${libres<1?'disabled':''}>🔭 Explorar (${libres} libre${libres===1?'':'s'})</button>
+      </div>`;
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    const eb=ctxEl.querySelector('#ctx-explore');
+    if(eb) eb.onclick=()=>exploreTo(ctxState.x, ctxState.y);
+    return;
+  }
+  if(ctxState.kind==='animal'){
+    const a=ctxState.a;
+    if(!animals.includes(a)){ closeCtx(); return; }
+    if(a.kind==='deer'){
+      ctxEl.innerHTML=`
+        <div class="c-head">
+          <span class="c-icon">🦌</span>
+          <span class="c-title">Ciervo</span>
+          <button class="c-close">✕</button>
+        </div>
+        <div class="c-desc">Carne fresca para tu poblado: +🍖80 al cazarlo. El ciervo intentará huir.</div>
+        <div class="c-actions"><button id="ctx-hunt">🏹 Cazar</button></div>`;
+      ctxEl.querySelector('#ctx-hunt').onclick=()=>hunt(a);
+    } else {
+      ctxEl.innerHTML=`
+        <div class="c-head">
+          <span class="c-icon">🐺</span>
+          <span class="c-title">Lobo</span>
+          <button class="c-close">✕</button>
+        </div>
+        <div class="c-desc">Peligroso: persigue a los aldeanos alejados de la ciudad y les hace soltar la carga. Cerca del centro urbano están a salvo.</div>`;
+    }
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    return;
+  }
+  if(ctxState.kind==='ebuild'){
+    const eb=ctxState.eb;
+    if(!S.enemyBuilds || !S.enemyBuilds.includes(eb)){ closeCtx(); return; }
+    const names={etc:'Centro urbano enemigo', ehut:'Choza enemiga', etower:'Torre enemiga'};
+    ctxEl.innerHTML=`
+      <div class="c-head">
+        <span class="c-icon">🏴</span>
+        <span class="c-title">${names[eb.id]} — ${Math.ceil(eb.hp)}/${eb.max}</span>
+        <button class="c-close">✕</button>
+      </div>
+      <div class="c-desc">${eb.id==='etc'?'Destrúyelo para ganar la partida.':'Defiende el poblado rival.'} Entrena soldados en el ⚔️ Cuartel y pulsa el banderín del ejército para atacar.</div>`;
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    return;
+  }
+  if(ctxState.kind==='node'){
+    const {x,y}=ctxState;
+    const c=tiles[idx(x,y)];
+    if(!RES_OF_T[c.t] || c.amt<=0){ closeCtx(); return; }
+    const res=RES_OF_T[c.t];
+    const n=assignCount(res);
+    const locked = res==='oro' && S.age<1;
+    ctxEl.innerHTML=`
+      <div class="c-head">
+        <span class="c-icon">${T_ICON[c.t]}</span>
+        <span class="c-title">${T_NAME[c.t]} — ${RES_META[res].icon} ${fmt(c.amt)} restante</span>
+        <button class="c-close">✕</button>
+      </div>
+      <div class="c-desc">${locked? 'El oro se desbloquea en la Edad de Bronce.' : `Aldeanos recogiendo ${RES_META[res].name.toLowerCase()} (en todo el mapa):`}</div>
+      <div class="c-actions">
+        <button class="sq" data-a="-1" ${n<=0||locked?'disabled':''}>−</button>
+        <span class="assign-ct">${n}</span>
+        <button class="sq" data-a="1" ${idleCount()<=0||locked?'disabled':''}>＋</button>
+        <span style="font-size:12px;color:var(--dim)">😴 ${idleCount()} libres</span>
+      </div>`;
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    ctxEl.querySelectorAll('[data-a]').forEach(btn=>btn.onclick=()=>setAssign(res, +btn.dataset.a, {x,y}));
+  } else {
+    const b=ctxState.b;
+    if(!S.builds.includes(b)){ closeCtx(); return; }
+    const def=BLD[b.id];
+    const lvl=b.lvl||1;
+    let extra='';
+    if(b.id==='ayunta'){
+      const c=recruitCost();
+      extra=`<button id="ctx-recruit" ${S.res.comida<c||villagers.length>=popCap()?'disabled':''}>＋ Reclutar aldeano (🍖${fmt(c)})</button>`;
+    }
+    if(def.farm) extra=`<span style="font-size:12px;color:var(--dim)">Trabajadores: ${farmWorkers(b)}/${lvl} — asigna aldeanos a 🍖 comida y vendrán solos.</span>`;
+    if(b.id==='cuartel'){
+      extra=Object.keys(UNITS).map(k=>{
+        const u=UNITS[k];
+        const locked=S.age<u.needAge;
+        return `<button data-train="${k}" ${locked||!canPay(u.cost)||totalPop()>=popCap()?'disabled':''}>${u.icon} ${u.name} (${locked?AGES[u.needAge].name:costTxt(u.cost)})</button>`;
+      }).join('');
+    }
+    let upBtn='';
+    if(!NO_UPGRADE.has(b.id)){
+      if(lvl>=3) upBtn=`<span style="font-size:12px;color:var(--green)">⭐⭐ Nivel máximo</span>`;
+      else if(lvl+1>maxLvlNow()) upBtn=`<button disabled>⬆ Nv ${lvl+1} (requiere ${AGES[lvl+1===2?1:3].name})</button>`;
+      else{
+        const uc=upgradeCost(b);
+        upBtn=`<button id="ctx-upgrade" ${canPay(uc)?'':'disabled'}>⬆ Mejorar a Nv ${lvl+1} (${costTxt(uc)})</button>`;
+      }
+    }
+    ctxEl.innerHTML=`
+      <div class="c-head">
+        <span class="c-icon">${b.id==='ayunta'?AGES[S.age].tc:def.icon}</span>
+        <span class="c-title">${def.name}${NO_UPGRADE.has(b.id)?'':` · Nivel ${lvl}${lvl>1?' '+'⭐'.repeat(lvl-1):''}`}</span>
+        <button class="c-close">✕</button>
+      </div>
+      <div class="c-desc">${def.desc}${lvl>1?` — efectos ×${lvl}`:''}</div>
+      <div class="c-actions">
+        ${extra}
+        ${upBtn}
+        ${def.noBuild?'':'<button id="ctx-demolish">💥 Demoler</button>'}
+      </div>`;
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    ctxEl.querySelectorAll('[data-train]').forEach(btn=>btn.onclick=()=>trainUnit(btn.dataset.train, b));
+    const rb=ctxEl.querySelector('#ctx-recruit');
+    if(rb) rb.onclick=recruit;
+    const ub=ctxEl.querySelector('#ctx-upgrade');
+    if(ub) ub.onclick=()=>upgrade(b);
+    const db=ctxEl.querySelector('#ctx-demolish');
+    if(db) db.onclick=()=>demolish(b);
+  }
+}
+
+/* ---------------- Hojas ---------------- */
+const sheetEl=document.getElementById('sheet');
+const sheetBack=document.getElementById('sheet-back');
+let sheetKind=null;
+sheetBack.onclick=closeSheet;
+function closeSheet(){ sheetEl.style.display='none'; sheetBack.style.display='none'; sheetKind=null; }
+function openSheet(kind){
+  sheetKind=kind;
+  sheetEl.style.display='block'; sheetBack.style.display='block';
+  refreshSheet();
+}
+document.getElementById('bottombar').querySelectorAll('button').forEach(b=>{
+  b.onclick=()=>openSheet(b.dataset.sheet);
+});
+document.getElementById('btn-age').onclick=()=>openSheet('age');
+
+function itemRow(icon,name,desc,cost,btnTxt,disabled,done,countTxt){
+  return `<div class="item ${done?'done':''}">
+    <span class="i-icon">${icon}</span>
+    <div class="i-info">
+      <div class="i-name">${name} ${countTxt?`<span class="i-count">${countTxt}</span>`:''}</div>
+      <div class="i-desc">${desc}</div>
+      <div class="i-cost">${cost}</div>
+    </div>
+    <button ${disabled?'disabled':''}>${btnTxt}</button>
+  </div>`;
+}
+function refreshSheet(){
+  if(!sheetKind) return;
+  let html='';
+  if(sheetKind==='build'){
+    html=`<h2>🏗️ Construir <button class="sh-close">✕ Cerrar</button></h2>`;
+    // en Supervivencia la torre está disponible desde la Edad de Piedra
+    const effAge=b=>(S.mode==='oleadas' && b.id==='torre') ? 0 : b.age;
+    const list=BUILDINGS.filter(b=>effAge(b)<=S.age && !b.noBuild && !(S.mode==='oleadas' && b.id==='maravilla'));
+    for(const b of list){
+      const n=buildCount(b.id);
+      const maxed=b.max && n>=b.max;
+      const c=buildCost(b);
+      html+=itemRow(b.icon, b.name, b.desc + (b.placeTxt? ` · <b>${b.placeTxt}</b>`:''),
+        maxed?'Construido':costTxt(c), maxed?'✓':'Colocar', maxed||!canPay(c), maxed, n>0?`×${n}`:'');
+    }
+    sheetEl.innerHTML=html;
+    const btns=sheetEl.querySelectorAll('.item button');
+    list.forEach((b,i)=>btns[i].onclick=()=>startPlacing(b));
+  }
+  else if(sheetKind==='tech'){
+    html=`<h2>📜 Tecnología <button class="sh-close">✕ Cerrar</button></h2>`;
+    const list=TECHS.filter(t=>t.age<=S.age);
+    for(const t of list){
+      const done=!!S.techs[t.id];
+      const c=techCost(t);
+      html+=itemRow(t.icon, t.name, t.desc, done?'Investigado':costTxt(c), done?'✓':'Investigar', done||!canPay(c), done, '');
+    }
+    sheetEl.innerHTML=html;
+    const btns=sheetEl.querySelectorAll('.item button');
+    list.forEach((t,i)=>btns[i].onclick=()=>research(t));
+  }
+  else if(sheetKind==='market'){
+    html=`<h2>⚖️ Mercado <button class="sh-close">✕ Cerrar</button></h2>`;
+    if(!M.trade){
+      html+=`<div class="sheet-note">Construye un ⚖️ Mercado (Edad de Bronce) para comerciar con las caravanas.</div>`;
+      sheetEl.innerHTML=html;
+    } else {
+      const deals=[
+        {give:'comida', get:'oro', giveAmt:100, getAmt:30},
+        {give:'madera', get:'oro', giveAmt:100, getAmt:30},
+        {give:'piedra', get:'oro', giveAmt:100, getAmt:30},
+        {give:'oro', get:'comida', giveAmt:60, getAmt:100},
+        {give:'oro', get:'madera', giveAmt:60, getAmt:100},
+        {give:'oro', get:'piedra', giveAmt:60, getAmt:100},
+      ];
+      for(const d of deals){
+        html+=itemRow(`${RES_META[d.give].icon}➜${RES_META[d.get].icon}`,
+          `Cambiar ${d.giveAmt} de ${RES_META[d.give].name.toLowerCase()}`,
+          `Recibes ${RES_META[d.get].icon} ${d.getAmt} de ${RES_META[d.get].name.toLowerCase()}`,
+          '', 'Cambiar', S.res[d.give]<d.giveAmt, false, '');
+      }
+      sheetEl.innerHTML=html;
+      const btns=sheetEl.querySelectorAll('.item button');
+      deals.forEach((d,i)=>btns[i].onclick=()=>trade(d.give,d.get,d.giveAmt,d.getAmt));
+    }
+  }
+  else if(sheetKind==='pop'){
+    html=`<h2>👥 Aldeanos: ${villagers.length}/${popCap()} <button class="sh-close">✕ Cerrar</button></h2>`;
+    for(const r of RES){
+      if(r==='oro' && S.age<1) continue;
+      const n=assignCount(r);
+      html+=`<div class="assign-row" data-res="${r}">
+        <span class="a-label">${RES_META[r].icon} ${RES_META[r].name} <span style="color:var(--dim);font-size:12px">+${resRate(r).toFixed(1).replace('.',',')}/s</span></span>
+        <button data-a="-1" ${n<=0?'disabled':''}>−</button>
+        <span class="a-count">${n}</span>
+        <button data-a="1" ${idleCount()<=0?'disabled':''}>＋</button>
+      </div>`;
+    }
+    const rc=recruitCost();
+    html+=`<div class="sheet-note">😴 ${idleCount()} aldeano(s) sin tarea.</div>
+      <button id="sh-recruit" style="width:100%;padding:11px;font-weight:700" ${S.res.comida<rc||villagers.length>=popCap()?'disabled':''}>＋ Reclutar aldeano (🍖${fmt(rc)})</button>`;
+    sheetEl.innerHTML=html;
+    sheetEl.querySelectorAll('.assign-row').forEach(row=>{
+      const r=row.dataset.res;
+      row.querySelectorAll('[data-a]').forEach(btn=>btn.onclick=()=>setAssign(r,+btn.dataset.a,null));
+    });
+    sheetEl.querySelector('#sh-recruit').onclick=recruit;
+  }
+  else if(sheetKind==='age'){
+    const next=S.age+1;
+    html=`<h2>⬆ Avance de edad <button class="sh-close">✕ Cerrar</button></h2>`;
+    if(next>=AGES.length){
+      html+=`<div class="sheet-note">${AGES[5].icon} Has alcanzado la edad final. ${S.mode==='oleadas'?'Resiste todas las oleadas que puedas.':'Construye la 🗼 Maravilla para ganar la partida.'}</div>`;
+      sheetEl.innerHTML=html;
+    } else {
+      const req=AGE_REQ[next];
+      html+=`<div class="sheet-note">Para avanzar a <b style="color:var(--gold)">${AGES[next].icon} ${AGES[next].name}</b> necesitas:</div><div style="margin-bottom:10px">`;
+      for(const r in req.cost){
+        const ok=S.res[r]>=req.cost[r];
+        html+=`<span class="req-item ${ok?'ok':''}">${ok?'✓':'○'} ${RES_META[r].icon} ${fmt(Math.min(S.res[r],req.cost[r]))}/${fmt(req.cost[r])}</span>`;
+      }
+      for(const id in req.builds){
+        const def=BLD[id];
+        const have=buildCount(id), need=req.builds[id];
+        const ok=have>=need;
+        html+=`<span class="req-item ${ok?'ok':''}">${ok?'✓':'○'} ${def.icon} ${def.name} ${Math.min(have,need)}/${need}</span>`;
+      }
+      html+=`</div><button id="sh-advance" style="width:100%;padding:12px;font-weight:700;font-size:15px" ${ageReady()?'':'disabled'}>${AGES[next].icon} Avanzar a la ${AGES[next].name}</button>`;
+      sheetEl.innerHTML=html;
+      sheetEl.querySelector('#sh-advance').onclick=advanceAge;
+    }
+  }
+  else if(sheetKind==='more'){
+    const st=S.stats;
+    const h=Math.floor(st.time/3600), min=Math.floor((st.time%3600)/60);
+    const nAch=Object.keys(S.ach).length;
+    html=`<h2>⚙️ Más <button class="sh-close">✕ Cerrar</button></h2>
+      <button id="sh-sound" style="width:100%;padding:10px;margin-bottom:10px;font-weight:600">${S.sound?'🔊 Sonido: activado':'🔇 Sonido: silenciado'}</button>
+      <div class="sheet-note" style="margin-top:0"><b style="color:var(--gold)">📊 Estadísticas</b><br>
+        ⏱️ Tiempo de juego: ${h?h+' h ':''}${min} min · ⚔️ Invasores abatidos: ${st.kills} · 🛡️ Incursiones vividas: ${st.raids} · ⚖️ Intercambios: ${st.trades}<br>
+        🦌 Ciervos cazados: ${st.hunts||0} · ✨ Tesoros hallados: ${st.treasures||0} · 🔭 Mapa descubierto: ${fog?Math.round(fogCount/(W*H)*100):100}%<br>
+        Recolectado en total: ${RES.map(r=>`${RES_META[r].icon}${fmt(st.g[r])}`).join(' · ')}
+      </div>
+      <div style="margin:10px 0 4px;font-weight:700;color:var(--gold)">🏆 Logros (${nAch}/${ACHS.length})</div>
+      <div class="ach-grid">
+        ${ACHS.map(a=>{
+          const got=!!S.ach[a.id];
+          return `<div class="ach ${got?'got':''}"><span class="ach-i">${got?a.icon:'🔒'}</span><div><div class="ach-n">${a.name}</div><div class="ach-d">${a.desc}</div></div></div>`;
+        }).join('')}
+      </div>
+      <div style="margin:12px 0 4px;font-weight:700;color:var(--gold)">📜 Registro</div>
+      <div id="log-list" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:10px">
+        ${logMsgs.map(l=>`<p class="${l.cls}">${l.msg}</p>`).join('') || '<p>Sin novedades.</p>'}
+      </div>
+      <div style="display:flex;gap:8px">
+        <button id="sh-save" style="flex:1;padding:10px">💾 Guardar</button>
+        <button id="sh-reset" style="flex:1;padding:10px;color:var(--red)">🔥 Reiniciar</button>
+      </div>
+      <div class="sheet-note">La partida se guarda sola cada 10 s en este dispositivo. Los aldeanos siguen trabajando (al 50%) aunque cierres el juego.</div>
+      ${matchMedia('(pointer:fine)').matches ? `<div class="sheet-note">⌨️ <b style="color:var(--gold)">Atajos</b>: <b>B</b> construir · <b>T</b> tecnología · <b>M</b> mercado · <b>A</b> aldeanos · <b>E</b> edad · <b>G</b> este panel · <b>R</b> reclutar · <b>F</b> velocidad x1/x2/x3 · <b>Q</b> repetir último edificio · <b>Shift</b>+clic colocar en cadena · <b>flechas</b> mover cámara · <b>+/−</b> zoom (o asignar aldeanos con un recurso seleccionado) · <b>H</b> o <b>espacio</b> centrar · <b>Esc</b> cerrar</div>`:''}`;
+    sheetEl.innerHTML=html;
+    sheetEl.querySelector('#sh-sound').onclick=()=>{ S.sound=!S.sound; if(S.sound){ ac(); SFX.good(); } refreshSheet(); };
+    sheetEl.querySelector('#sh-save').onclick=()=>{ save(); toast('💾 Partida guardada.'); };
+    sheetEl.querySelector('#sh-reset').onclick=()=>{
+      if(confirm('¿Seguro que quieres empezar de cero? Se borrará todo el progreso.')) hardReset();
+    };
+  }
+  const closeBtn=sheetEl.querySelector('.sh-close');
+  if(closeBtn) closeBtn.onclick=closeSheet;
+}
+
+/* ---------------- HUD ---------------- */
+const resRefs={};
+const RES_ACCENT={comida:'#c96f4f', madera:'#a1876a', piedra:'#9b9b95', oro:'#e0b95f'};
+(function buildHUD(){
+  const bar=document.getElementById('res-bar');
+  for(const r of RES){
+    const div=document.createElement('div');
+    div.className='res-chip';
+    div.style.borderTop='2px solid '+RES_ACCENT[r];
+    div.innerHTML=`<div class="r-top">${RES_META[r].icon} <span class="r-val"></span></div><div class="r-rate"></div>`;
+    div.onclick=()=>openSheet('pop');
+    bar.appendChild(div);
+    resRefs[r]={chip:div, val:div.querySelector('.r-val'), rate:div.querySelector('.r-rate')};
+  }
+})();
+function updateHUD(){
+  const cap=resCap();
+  for(const r of RES){
+    const R=resRefs[r];
+    R.val.textContent=fmt(S.res[r]);
+    const rt=resRate(r);
+    R.rate.textContent=(rt>0?'+':'')+rt.toFixed(1).replace('.',',')+'/s · máx '+fmt(cap);
+    R.rate.classList.toggle('pos', rt>0.05);
+    R.chip.classList.toggle('full', S.res[r]>=cap-0.5);
+    R.chip.classList.toggle('locked', r==='oro'&&S.age<1);
+  }
+  document.getElementById('age-lbl').textContent=`${AGES[S.age].icon} ${AGES[S.age].name}`;
+  document.getElementById('pop-chip').textContent=`👥 ${totalPop()}/${popCap()}`;
+  // banderín del ejército
+  const af=document.getElementById('army-flag');
+  if(soldiers.length){
+    af.style.display='block';
+    af.textContent=`⚔️ ${soldiers.length} · ${S.stance==='attack'?'🗡️ Atacando':'🛡️ Defendiendo'} (toca para cambiar)`;
+  } else af.style.display='none';
+  const btnA=document.getElementById('btn-age');
+  if(S.age+1>=AGES.length){ btnA.style.display='none'; }
+  else btnA.classList.toggle('locked', !ageReady());
+  // estación
+  const sd=SEASONS[season()];
+  const scChip=document.getElementById('season-chip');
+  scChip.textContent=sd.i;
+  scChip.title=`${sd.n} · comida ${sd.mult>1?'+':''}${Math.round((sd.mult-1)*100)}%`;
+  // chip de modo
+  const mc=document.getElementById('mode-chip');
+  if(S.mode==='reloj'){ mc.style.display='inline-block'; mc.textContent='⏱️ '+fmtTime(S.stats.time); }
+  else if(S.mode==='oleadas'){ mc.style.display='inline-block'; mc.textContent='🌊 '+S.wave; }
+  else mc.style.display='none';
+  // aviso de incursión / oleada
+  const rf=document.getElementById('raid-flag');
+  if(enemies.length){
+    rf.style.display='block';
+    rf.textContent=`👺 ${enemies.length} invasor${enemies.length>1?'es':''}` +
+      (S.mode==='oleadas' ? ` · 🏛️ ${Math.ceil(S.tcHp)}/${tcMaxHp()}` : '');
+  } else if(raidPending){
+    rf.style.display='block';
+    rf.textContent='📯 Incursión inminente…';
+  } else if(S.mode==='oleadas' && S.nextWave && !S.won && !S.dead){
+    rf.style.display='block';
+    rf.textContent=`🌊 Oleada ${S.wave+1} en ${Math.max(0,Math.ceil((S.nextWave-Date.now())/1000))} s · 🏛️ ${Math.ceil(S.tcHp)}/${tcMaxHp()}`;
+  } else rf.style.display='none';
+}
+
+/* ---------------- Bucle ---------------- */
+let lastFrame=performance.now();
+function simTick(){
+  const now=performance.now();
+  const rawDt=Math.min((now-lastFrame)/1000, 0.5);
+  lastFrame=now;
+  const spd=S.speed||1;
+  const dt=rawDt*spd;
+  if(spd>1){
+    // acelera también los temporizadores de reloj (eventos, incursiones, oleadas)
+    const ms=(spd-1)*rawDt*1000;
+    S.lastEvent-=ms;
+    if(S.nextRaid) S.nextRaid-=ms;
+    if(raidPending) raidPending-=ms;
+    if(S.nextWave) S.nextWave-=ms;
+    lastRegrow-=ms;
+  }
+  if(!S.won && !S.dead){
+    for(const v of villagers) updateVillager(v, dt);
+    for(const e of [...enemies]) updateEnemy(e, dt);
+    for(const a of [...animals]) updateAnimal(a, dt);
+    for(const s of [...soldiers]) updateSoldier(s, dt);
+    updateEnemyTowers(dt);
+    updateBirds(dt);
+    if(Date.now()-lastAnimalTick>10000){ lastAnimalTick=Date.now(); maintainAnimals(); }
+    updateDefenses(dt);
+    maybeEvent(Date.now());
+    maybeRaid(Date.now());
+    maybeWave(Date.now());
+    regrow(Date.now());
+    if(S.mode==='oleadas' && !enemies.length && S.tcHp<tcMaxHp()) S.tcHp=Math.min(tcMaxHp(), S.tcHp+3*dt);
+    tickSeason(dt);
+    S.stats.time+=dt;
+  }
+}
+setInterval(simTick, 100);
+setInterval(()=>{ updateHUD(); checkAchs(); checkMission(); if(ctxState) refreshCtx(); if(sheetKind==='pop'||sheetKind==='age'||sheetKind==='market') refreshSheet(); }, 600);
+setInterval(save, 10000);
+setInterval(()=>{ if(wearDirty){ wearDirty=false; staticDirty=true; } }, 12000);   // repinta los caminos
+window.addEventListener('beforeunload', save);
+document.addEventListener('visibilitychange', ()=>{ if(document.hidden) save(); });
+window.addEventListener('resize', resizeCanvas);
+
+/* ---------------- Menú de modos ---------------- */
+let menuOpen=false;
+function showMenu(){
+  menuOpen=true; noSave=true;
+  const recs=getRecs();
+  const cards=document.getElementById('menu-cards');
+  cards.innerHTML='';
+  for(const key in MODES){
+    const m=MODES[key];
+    let rec='';
+    if(key==='reloj' && recs.bestTime) rec=`🏅 Tu récord: ${fmtTime(recs.bestTime)}`;
+    if(key==='oleadas' && recs.bestWave) rec=`🏅 Mejor oleada: ${recs.bestWave}`;
+    const btn=document.createElement('button');
+    btn.className='mode-card';
+    btn.innerHTML=`<span class="mc-icon">${m.icon}</span>
+      <span style="flex:1;min-width:0">
+        <span class="mc-name">${m.name}</span>
+        <div class="mc-desc">${m.desc}</div>
+        ${rec?`<div class="mc-rec">${rec}</div>`:''}
+      </span>`;
+    btn.onclick=()=>pickMode(key);
+    cards.appendChild(btn);
+  }
+  document.getElementById('menu').classList.add('show');
+}
+function pickMode(mode){
+  newGame();
+  S.mode=mode;
+  if(mode==='oleadas'){ S.wave=0; S.nextWave=Date.now()+150000; S.tcHp=600; }
+  if(mode==='conquista') genEnemyVillage();
+  menuOpen=false; noSave=false;
+  M=calcMods(); staticDirty=true;
+  animals=[];
+  for(let i=0;i<7;i++) maintainAnimals();
+  document.getElementById('z-speed').textContent='x'+S.speed;
+  updateMissionBar();
+  document.getElementById('menu').classList.remove('show');
+  centerCam();
+  save();
+  log(`${MODES[mode].icon} Nueva partida en modo ${MODES[mode].name}.`, 'age');
+  log('🪨 Tu tribu se asienta junto al río.');
+  setTimeout(()=>toast('👉 Toca un 🌲 bosque o unas 🍇 bayas y pulsa ＋ para enviar aldeanos.'), 700);
+  setTimeout(()=>toast('🏗️ Con «Construir» colocas edificios tocando el mapa.'), 6000);
+  if(mode==='oleadas') setTimeout(()=>toast('🌊 La primera oleada llega en 2 min y medio. Tu centro urbano dispara, y las 🏹 torres ya están disponibles.'), 11000);
+  if(mode==='conquista') setTimeout(()=>toast('🗡️ Un poblado rival se esconde en la niebla. Desarrolla tu economía, construye un ⚔️ Cuartel y entrena un ejército.'), 11000);
+  updateHUD();
+}
+
+/* ---------------- Arranque ---------------- */
+const loaded=load();
+if(!loaded) newGame();          // partida de fondo mientras se elige modo
+M=calcMods();
+if(loaded){
+  offlineGains();
+  log('📜 Partida cargada. ¡Continúa tu imperio!');
+} else {
+  showMenu();
+}
+document.getElementById('btn-again').onclick=hardReset;
+for(let i=0;i<7;i++) maintainAnimals();
+document.getElementById('z-speed').textContent='x'+(S.speed||1);
+updateMissionBar();
+resizeCanvas();
+centerCam();
+if(S.won) winGame();
+updateHUD();
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
