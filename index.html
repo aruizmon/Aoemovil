@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#1a140e">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
 <title>Imperios: De la Piedra al Imperio</title>
 <style>
   :root{
@@ -71,8 +74,28 @@
     position:absolute; top:122px; left:8px; z-index:5; display:none;
     background:rgba(90,25,20,.9); border:1px solid var(--red); border-radius:10px;
     padding:6px 10px; font-size:13px; font-weight:700; color:#f0c0b0;
-    animation:raidpulse 1s infinite alternate;
+    animation:raidpulse 1s infinite alternate; cursor:pointer;
   }
+  #idle-flag{
+    position:absolute; top:8px; right:8px; z-index:5; display:none;
+    background:rgba(58,45,30,.92); border:1px solid var(--gold); border-radius:10px;
+    padding:6px 10px; font-size:13px; font-weight:700; color:var(--gold); cursor:pointer;
+  }
+
+  /* ---------- Tutorial guiado ---------- */
+  #tut{
+    position:absolute; left:8px; right:8px; top:8px; z-index:6; display:none;
+    background:rgba(42,32,24,.96); border:1px solid var(--gold); border-radius:12px;
+    padding:10px 12px; box-shadow:0 4px 16px rgba(0,0,0,.5);
+    max-width:440px; margin:0 auto;
+  }
+  #tut .t-txt{font-size:13.5px; line-height:1.45; margin-bottom:8px;}
+  #tut .t-txt .t-icon{font-size:18px; margin-right:4px;}
+  #tut .t-row{display:flex; gap:8px; align-items:center;}
+  #tut .t-step{font-size:11.5px; color:var(--dim); flex:1;}
+  #tut button{padding:6px 12px; font-size:12.5px; font-weight:600;}
+  #tut #tut-next{border-color:var(--gold);}
+  #tut .t-wait{font-size:11.5px; color:var(--gold);}
   @keyframes raidpulse{ from{box-shadow:0 0 4px rgba(224,122,95,.4);} to{box-shadow:0 0 14px rgba(224,122,95,.9);} }
   @media (prefers-reduced-motion: reduce){ #raid-flag{animation:none;} }
   #zoom-btns{position:absolute; right:8px; bottom:8px; display:flex; flex-direction:column; gap:6px; z-index:5;}
@@ -217,6 +240,16 @@
   <canvas id="minimap" width="104" height="104"></canvas>
   <div id="raid-flag"></div>
   <div id="army-flag"></div>
+  <div id="idle-flag"></div>
+  <div id="tut">
+    <div class="t-txt"><span class="t-icon" id="tut-icon"></span><span id="tut-txt"></span></div>
+    <div class="t-row">
+      <span class="t-step" id="tut-step"></span>
+      <span class="t-wait" id="tut-wait" style="display:none">⌛ Hazlo para continuar…</span>
+      <button id="tut-skip">Saltar tutorial</button>
+      <button id="tut-next">Siguiente ➜</button>
+    </div>
+  </div>
   <div id="zoom-btns">
     <button id="z-in">＋</button>
     <button id="z-out">−</button>
@@ -442,8 +475,10 @@ const MISSIONS=[
   {icon:'👑', txt:'Avanza a la Edad Imperial',                test:()=>S.age>=5,                               rw:{comida:1500, madera:1500, piedra:1000, oro:800}},
   {icon:'🗼', txt:'Construye la Maravilla y pasa a la historia', test:()=>S.won,                               rw:{oro:1}},
 ];
+// en Supervivencia la Maravilla no existe: la última misión queda fuera
+function missionCount(){ return S.mode==='oleadas' ? MISSIONS.length-1 : MISSIONS.length; }
 function checkMission(){
-  if(!S || S.mission>=MISSIONS.length) return;
+  if(!S || S.mission>=missionCount()) return;
   const m=MISSIONS[S.mission];
   let ok=false;
   try{ ok=m.test(); }catch(e){}
@@ -459,11 +494,54 @@ function checkMission(){
 }
 function updateMissionBar(){
   const el=document.getElementById('mission-bar');
-  if(!S || S.mission>=MISSIONS.length){ el.style.display='none'; return; }
+  if(!S || S.mission>=missionCount()){ el.style.display='none'; return; }
   const m=MISSIONS[S.mission];
   el.style.display='block';
-  el.textContent=`📜 Misión ${S.mission+1}/${MISSIONS.length}: ${m.icon} ${m.txt} · premio: ${costTxt(m.rw)}`;
+  el.textContent=`📜 Misión ${S.mission+1}/${missionCount()}: ${m.icon} ${m.txt} · premio: ${costTxt(m.rw)}`;
 }
+
+/* ---------------- Tutorial guiado ----------------
+   Pasos con `test` esperan a que el jugador lo haga; los demás avanzan con «Siguiente». */
+const TUT_STEPS=[
+  {icon:'👋', txt:'¡Bienvenido, jefe! Tu tribu acaba de asentarse. El ⛺ centro urbano es el corazón de la ciudad: allí se descargan los recursos. Si te pierdes por el mapa, pulsa 🎯 para volver a él.'},
+  {icon:'🍖', txt:'Lo primero es la comida y la madera: toca unas 🍇 bayas o un 🌲 bosque en el mapa y pulsa ＋ para enviar a un aldeano a recolectar.',
+   test:()=>assignCount('comida')>=1 || assignCount('madera')>=1},
+  {icon:'📊', txt:'Arriba ves cada recurso, su ritmo por segundo y el máximo de almacén. Con la barra 👥 puedes recolocar aldeanos cuando quieras.'},
+  {icon:'🛖', txt:'Ahora un techo: abre 🏗️ Construir, elige la Choza y toca una casilla de hierba para colocarla. Cada choza da +2 de población.',
+   test:()=>buildCount('choza')>=1},
+  {icon:'👶', txt:'Recluta un aldeano nuevo: toca el ⛺ centro urbano y pulsa «＋ Reclutar aldeano». Cuesta comida, y cuantos más tengas, más caro sale.',
+   test:()=>villagers.length>=4},
+  {icon:'🌫️', txt:'El mapa está cubierto de niebla. Toca una zona oscura y pulsa 🔭 Explorar para mandar a un aldeano libre: puede encontrar ✨ tesoros.'},
+  {icon:'📜', txt:'¡Perfecto! A partir de aquí la barra de misiones de abajo te irá guiando paso a paso. Avanza de edad, defiende tu ciudad… ¡y que prospere tu imperio!', last:true},
+];
+const tutEl=document.getElementById('tut');
+function updateTut(){
+  if(!S || S.tutDone || menuOpen || S.won || S.dead || placing){ tutEl.style.display='none'; return; }
+  const st=TUT_STEPS[S.tutStep||0];
+  if(!st){ S.tutDone=true; tutEl.style.display='none'; return; }
+  if(st.test){
+    let ok=false; try{ ok=st.test(); }catch(e){}
+    if(ok){ S.tutStep=(S.tutStep||0)+1; SFX.good(); updateTut(); return; }
+  }
+  tutEl.style.display='block';
+  document.getElementById('tut-icon').textContent=st.icon;
+  document.getElementById('tut-txt').textContent=st.txt;
+  document.getElementById('tut-step').textContent=`Paso ${(S.tutStep||0)+1}/${TUT_STEPS.length}`;
+  document.getElementById('tut-wait').style.display = st.test ? 'inline' : 'none';
+  const nx=document.getElementById('tut-next');
+  nx.style.display = st.test ? 'none' : 'inline-block';
+  nx.textContent = st.last ? '✓ ¡A jugar!' : 'Siguiente ➜';
+}
+document.getElementById('tut-next').onclick=()=>{
+  S.tutStep=(S.tutStep||0)+1;
+  if(S.tutStep>=TUT_STEPS.length) S.tutDone=true;
+  updateTut();
+};
+document.getElementById('tut-skip').onclick=()=>{
+  S.tutDone=true;
+  updateTut();
+  toast('Tutorial omitido. La barra de misiones de abajo te guiará.');
+};
 
 /* ---------------- Modos de juego y récords ---------------- */
 const MODES={
@@ -475,7 +553,7 @@ const MODES={
 };
 /* Unidades militares (se entrenan en el cuartel) */
 const UNITS={
-  mili:{name:'Miliciano', icon:'🗡️', cost:{comida:60, madera:20}, hp:60, dps:9,  range:0.8, needAge:1},
+  mili:{name:'Miliciano', icon:'🗡️', cost:{comida:60, madera:20}, hp:85, dps:10, range:0.8, needAge:1},
   arq: {name:'Arquero',   icon:'🏹', cost:{comida:40, madera:40, oro:15}, hp:40, dps:11, range:3.0, needAge:2},
 };
 const SOLDIER_SPEED=3.0;
@@ -583,9 +661,11 @@ function genMap(){
     let x,y,tries=0; do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<4||T[idx(x,y)].t!==T_GRASS)&&tries<80);
     blob(x,y,6+rnd(7),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_TREE; c.amt=T_AMT[T_TREE];} });
   }
-  // bayas cerca del centro
-  for(let B=0;B<2;B++){
-    let x,y,tries=0; do{ x=CX+rnd(9)-4; y=CY+rnd(9)-4; tries++; }while((dist(x,y)<2.5||!inB(x,y)||T[idx(x,y)].t!==T_GRASS)&&tries<80);
+  // bayas cerca del centro (y alguna más repartida en mapas grandes)
+  for(let B=0;B<2*mult;B++){
+    let x,y,tries=0;
+    if(B<2){ do{ x=CX+rnd(9)-4; y=CY+rnd(9)-4; tries++; }while((dist(x,y)<2.5||!inB(x,y)||T[idx(x,y)].t!==T_GRASS)&&tries<80); }
+    else   { do{ x=rnd(W); y=rnd(H); tries++; }while((dist(x,y)<5||T[idx(x,y)].t!==T_GRASS)&&tries<80); }
     blob(x,y,4+rnd(3),(tx,ty)=>{ const c=T[idx(tx,ty)]; if(c.t===T_GRASS){c.t=T_BERRY; c.amt=T_AMT[T_BERRY];} });
   }
   // roca y oro
@@ -679,7 +759,8 @@ const TREASURE_TYPES=[
 function genTreasures(){
   S.treasures=[];
   let tries=0;
-  while(S.treasures.length<6 && tries<300){
+  const want = 4 + 2*(W===50 ? 3 : W===36 ? 2 : 1);   // 6 / 8 / 10 según tamaño
+  while(S.treasures.length<want && tries<300){
     tries++;
     const x=rnd(W), y=rnd(H);
     if(tiles[idx(x,y)].t!==T_GRASS) continue;
@@ -709,16 +790,22 @@ let tiles = null;
 let villagers = [];               // {job, px, py, state, carry, path, pi, target, retry}
 let initialTrees = 0;
 
+// ajusta todas las estructuras que dependen del tamaño del mapa
+// (lienzos de niebla y estático, desgaste del terreno, escala del minimapa)
+function applyMapSize(n){
+  W=n; H=n;
+  CX=Math.floor(W/2); CY=Math.floor(H/2);
+  FC.width=W*TILE_PX;  FC.height=H*TILE_PX;
+  FC2.width=FC.width;  FC2.height=FC.height;
+  SC.width=W*TILE_PX;  SC.height=H*TILE_PX;
+  wear=new Float32Array(W*H);
+  MM=104/W;
+  staticDirty=true; fogDirty=true;
+}
+
 function newGame(opts){
   opts = opts || {};
-  W = opts.size === 'enorme' ? 50 : (opts.size === 'grande' ? 36 : 26);
-  H = W;
-  CX = Math.floor(W/2);
-  CY = Math.floor(H/2);
-  
-  if(window.FC) { FC.width=W*TILE_PX; FC.height=H*TILE_PX; }
-  if(window.FC2) { FC2.width=W*TILE_PX; FC2.height=H*TILE_PX; }
-  if(typeof SC !== 'undefined') { SC.width=W*TILE_PX; SC.height=H*TILE_PX; }
+  applyMapSize(opts.size === 'enorme' ? 50 : (opts.size === 'grande' ? 36 : 26));
 
   tiles = genMap();
   sanitizeMap();
@@ -734,7 +821,8 @@ function newGame(opts){
     biome: opts.biome || 'normal',
     mapSize: opts.size || 'normal',
     wave:0, tcHp:600, nextWave:0,
-    speed:1, mission:0, treasures:[], seasonT:0,
+    speed:1, mission:0, treasures:[], seasonT:0, mkt:{}, mktT:0,
+    tutStep:0, tutDone:false,
     solds:[], stance:'home', enemyBuilds:null,
     stats:{g:{comida:0,madera:0,piedra:0,oro:0}, kills:0, trades:0, raids:0, time:0, hunts:0, treasures:0, trained:0},
   };
@@ -837,11 +925,11 @@ function findPath(sx,sy,tx,ty){
   const blocked=(x,y)=> tiles[idx(x,y)].t===T_WATER;
   if(blocked(tx,ty)) return null;
   const prev = new Int32Array(W*H).fill(-1);
-  const q=[idx(sx,sy)]; prev[idx(sx,sy)]=idx(sx,sy);
+  const q=[idx(sx,sy)]; let qh=0; prev[idx(sx,sy)]=idx(sx,sy);
   const DIRS=[[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]];
   let found=false;
-  while(q.length){
-    const cur=q.shift(), cx=cur%W, cy=(cur-cx)/W;
+  while(qh<q.length){
+    const cur=q[qh++], cx=cur%W, cy=(cur-cx)/W;
     if(cx===tx&&cy===ty){ found=true; break; }
     for(const [dx,dy] of DIRS){
       const nx=cx+dx, ny=cy+dy;
@@ -997,7 +1085,7 @@ function updateVillager(v, dt){
         const cap=resCap();
         const dep=Math.min(v.carry, Math.max(0,cap-S.res[v.carryRes]));
         S.res[v.carryRes]+=dep;
-        if(dep>0) noteDeposit(v.carryRes, v.carry);
+        if(dep>0) noteDeposit(v.carryRes, dep);
         v.carry=0;
         if(v.job){
           if(v.target && !v.target.farm){
@@ -1050,7 +1138,13 @@ function updateVillager(v, dt){
         animals=animals.filter(x=>x!==a);
         v.prey=null; v.huntTime=0;
         S.stats.hunts=(S.stats.hunts||0)+1;
-        v.carry=80; v.carryRes='comida';   // suelta lo que llevara: el ciervo pesa
+        // lo que llevara encima no se pierde: se abona directo al almacén
+        if(v.carry>0.5 && v.carryRes && v.carryRes!=='comida'){
+          S.res[v.carryRes]=Math.min(resCap(), S.res[v.carryRes]+v.carry);
+          v.carry=0;
+        }
+        v.carry = (v.carryRes==='comida' ? v.carry : 0) + 80;
+        v.carryRes='comida';
         SFX.die();
         log('🏹 ¡Ciervo cazado! +🍖80 de carne.', 'good');
         sendToDrop(v);
@@ -1103,8 +1197,10 @@ function recruit(){
 let placing=null;    // def del edificio en colocación
 let lastPlacedDef=null;
 let shiftHeld=false;
+let placeCache=null, placeCacheT=0;   // casillas válidas cacheadas para el sombreado
 function startPlacing(def){
   placing=def;
+  placeCache=null;
   closeSheet(); closeCtx();
   document.getElementById('place-txt').textContent =
     `${def.icon} Toca una casilla de hierba ${def.placeTxt? def.placeTxt:''} para colocar: ${def.name} (${costTxt(buildCost(def))})`;
@@ -1112,6 +1208,7 @@ function startPlacing(def){
 }
 function stopPlacing(){
   placing=null;
+  placeCache=null;
   document.getElementById('place-banner').style.display='none';
 }
 function adjHas(x,y,tt){
@@ -1141,6 +1238,7 @@ function tryPlace(x,y){
   if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); stopPlacing(); return; }
   pay(c);
   S.builds.push({id:def.id, x, y, lvl:1});
+  placeCache=null;
   reveal(x, y, 3.5);
   M=calcMods();
   staticDirty=true;
@@ -1208,10 +1306,18 @@ function research(t){
   log(`${t.icon} Investigado: ${t.name}.`, 'good');
   refreshSheet(); updateHUD();
 }
+// precios dinámicos: cada trato usado se encarece un 5% y se recupera con el tiempo
+function dealTerms(d){
+  const uses=(S.mkt&&S.mkt[d.give+'>'+d.get])||0;
+  if(d.get==='oro') return {giveAmt:d.giveAmt, getAmt:Math.max(10, Math.round(d.getAmt*Math.pow(0.95,uses)))};
+  return {giveAmt:Math.min(d.giveAmt*3, Math.round(d.giveAmt*Math.pow(1.05,uses))), getAmt:d.getAmt};
+}
 function trade(give,get,giveAmt,getAmt){
   if(S.res[give]<giveAmt){ toast('Recursos insuficientes.'); return; }
   S.res[give]-=giveAmt;
   S.res[get]=Math.min(resCap(), S.res[get]+getAmt);
+  S.mkt=S.mkt||{};
+  S.mkt[give+'>'+get]=(S.mkt[give+'>'+get]||0)+1;
   S.stats.trades++;
   SFX.good();
   log(`⚖️ Comercio: ${RES_META[give].icon}${giveAmt} → ${RES_META[get].icon}${getAmt}`);
@@ -1363,6 +1469,11 @@ function updateAnimal(a, dt){
     const hunter=villagers.find(v=>v.state==='hunt' && v.prey===a);
     if(hunter){ moveAnimal(a, a.px*2-hunter.px, a.py*2-hunter.py, 1.7*TILE_PX*dt); return; }
   }
+  // el lobo huye del soldado que lo caza (pero es más lento que él)
+  if(a.kind==='wolf'){
+    const hunter=soldiers.find(s=>s.prey===a);
+    if(hunter){ moveAnimal(a, a.px*2-hunter.px, a.py*2-hunter.py, 1.9*TILE_PX*dt); return; }
+  }
   // el lobo acecha aldeanos alejados de la ciudad
   if(a.kind==='wolf' && a.cd<=0){
     let vt=null, vd=2.5*TILE_PX;
@@ -1404,6 +1515,16 @@ function hunt(a){
   if(!v){ toast('😴 No hay aldeanos disponibles para cazar.'); return; }
   v.prey=a; v.state='hunt'; v.path=null; v.huntT=0;
   log('🏹 Un aldeano sale de caza.');
+  closeCtx();
+}
+function attackWolf(a){
+  if(!soldiers.length){ toast('⚔️ Necesitas un soldado: entrénalo en el cuartel.'); return; }
+  // manda al soldado más cercano que no esté ya de caza
+  const libres=soldiers.filter(s=>!s.prey);
+  if(!libres.length){ toast('⚔️ Todos tus soldados ya están de caza.'); return; }
+  const s=libres.reduce((x,y)=>Math.hypot(x.px-a.px,x.py-a.py)<=Math.hypot(y.px-a.px,y.py-a.py)?x:y);
+  s.prey=a; s.path=null;
+  log('⚔️ Un soldado sale a dar caza al lobo.');
   closeCtx();
 }
 
@@ -1470,6 +1591,24 @@ function destroyEnemyBuild(eb){
 }
 function updateSoldier(s, dt){
   const u=UNITS[s.kind];
+  // caza asignada (lobo): persigue hasta abatirlo
+  if(s.prey){
+    if(!animals.includes(s.prey)){ s.prey=null; }
+    else{
+      const a=s.prey;
+      const d=Math.hypot(a.px-s.px, a.py-s.py);
+      if(d<0.9*TILE_PX){
+        animals=animals.filter(x=>x!==a);
+        s.prey=null;
+        S.res.comida=Math.min(resCap(), S.res.comida+40);
+        S.stats.kills++;
+        SFX.die();
+        log('⚔️ ¡Lobo abatido! El bosque es más seguro (+🍖40).', 'good');
+        toast('⚔️ ¡Lobo abatido! +🍖40');
+      } else moveUnit(s, Math.floor(a.px/TILE_PX), Math.floor(a.py/TILE_PX), dt);
+      return;
+    }
+  }
   // objetivo prioritario: invasores cercanos
   let tgt=null, td=1e9;
   for(const e of enemies){
@@ -1491,7 +1630,13 @@ function updateSoldier(s, dt){
     return;
   }
   if(S.stance==='attack' && S.enemyBuilds && S.enemyBuilds.length){
-    const eb=nearestEnemyBuild(s.px, s.py);
+    // si el jugador marcó un objetivo concreto, todos van a por él
+    let eb=null;
+    if(S.atkFocus){
+      eb=S.enemyBuilds.find(b=>b.x===S.atkFocus.x && b.y===S.atkFocus.y);
+      if(!eb) S.atkFocus=null;   // ya destruido: vuelve al más cercano
+    }
+    if(!eb) eb=nearestEnemyBuild(s.px, s.py);
     const ebx=(eb.x+0.5)*TILE_PX, eby=(eb.y+0.5)*TILE_PX;
     const d=Math.hypot(ebx-s.px, eby-s.py);
     if(d>Math.max(u.range,0.9)*TILE_PX){
@@ -1506,9 +1651,21 @@ function updateSoldier(s, dt){
     }
     return;
   }
-  // en casa: mantiene posición cerca del centro urbano
+  // en casa: mantiene posición cerca del centro urbano y se cura poco a poco
   const hx=(CX+0.5)*TILE_PX, hy=(CY+0.5)*TILE_PX;
   if(Math.hypot(hx-s.px, hy-s.py)>2.5*TILE_PX) moveUnit(s, CX, CY, dt);
+  else if(!enemies.length && s.hp<u.hp) s.hp=Math.min(u.hp, s.hp+2*dt);
+}
+function disband(kind){
+  const list=soldiers.filter(s=>s.kind===kind);
+  if(!list.length) return;
+  const s=list.reduce((a,b)=>a.hp<=b.hp?a:b);   // licencia primero al más herido
+  soldiers=soldiers.filter(x=>x!==s);
+  const u=UNITS[kind], cap=resCap();
+  for(const r in u.cost) S.res[r]=Math.min(cap, S.res[r]+Math.floor(u.cost[r]*0.5));
+  syncSolds();
+  log(`🏳️ ${u.name} licenciado (recuperas la mitad del coste).`);
+  refreshCtx(); updateHUD();
 }
 function moveUnit(s, tx, ty, dt){
   s.rp=(s.rp||0)-dt;
@@ -1777,7 +1934,11 @@ function load(){
     const raw=localStorage.getItem(SAVE_KEY);
     if(!raw) return false;
     const d=JSON.parse(raw);
-    if(!d.S || !d.tiles || d.tiles.length!==W*H) return false;
+    if(!d.S || !d.tiles) return false;
+    // restaura el tamaño del mapa guardado (26/36/50) antes de validar nada
+    const side=Math.round(Math.sqrt(d.tiles.length));
+    if(side*side!==d.tiles.length || side<10) return false;
+    if(side!==W) applyMapSize(side);
     S=d.S;
     tiles=d.tiles.map(e=>({t:e[0], amt:e[1]}));
     sanitizeMap();   // repara mapas antiguos con recursos inalcanzables
@@ -1798,6 +1959,9 @@ function load(){
     S.seasonT = S.seasonT||0;
     S.solds = S.solds||[];
     S.stance = S.stance||'home';
+    S.mkt = S.mkt||{};
+    // los guardados anteriores al tutorial no lo ven (ya saben jugar)
+    if(S.tutDone===undefined){ S.tutDone=true; S.tutStep=0; }
     if(typeof S.fogStr==='string' && S.fogStr.length===W*H){
       fog=Uint8Array.from(S.fogStr, c=>+c);
       fogCount=fog.reduce((a,b)=>a+b,0);
@@ -2187,6 +2351,7 @@ function redrawStatic(){
 }
 
 function draw(){
+  simTick();
   if(staticDirty) redrawStatic();
   ctx2d.setTransform(1,0,0,1,0,0);
   ctx2d.fillStyle='#1c2e16';
@@ -2256,12 +2421,17 @@ function draw(){
     ctx2d.lineWidth=3;
     ctx2d.strokeRect(selected.x*TILE_PX+2, selected.y*TILE_PX+2, TILE_PX-4, TILE_PX-4);
   }
-  // modo colocación: sombreado de casillas válidas
+  // modo colocación: sombreado de casillas válidas (cacheado, se refresca cada 400 ms)
   if(placing){
-    ctx2d.fillStyle='rgba(127,196,106,.22)';
-    for(let y=0;y<H;y++) for(let x=0;x<W;x++){
-      if(!placeError(placing,x,y)) ctx2d.fillRect(x*TILE_PX+2,y*TILE_PX+2,TILE_PX-4,TILE_PX-4);
+    const nowP=performance.now();
+    if(!placeCache || nowP-placeCacheT>400){
+      placeCacheT=nowP; placeCache=[];
+      for(let y=0;y<H;y++) for(let x=0;x<W;x++){
+        if(!placeError(placing,x,y)) placeCache.push([x,y]);
+      }
     }
+    ctx2d.fillStyle='rgba(127,196,106,.22)';
+    for(const [px2,py2] of placeCache) ctx2d.fillRect(px2*TILE_PX+2,py2*TILE_PX+2,TILE_PX-4,TILE_PX-4);
   }
   // aldeanos (dibujados, túnica según oficio)
   const JOB_COLORS={comida:'#c05a41', madera:'#8f6f42', piedra:'#8b9095', oro:'#d9a93c'};
@@ -2487,7 +2657,7 @@ function draw(){
 /* ---------------- Minimapa ---------------- */
 const mmc=document.getElementById('minimap');
 const mmx=mmc.getContext('2d');
-const MM=104/W;   // píxeles del minimapa por casilla
+let MM=104/W;   // píxeles del minimapa por casilla (se recalcula en applyMapSize)
 const MM_COL={[T_GRASS]:'#3f5c2d',[T_WATER]:'#2b4d6e',[T_TREE]:'#26521f',[T_BERRY]:'#7a3560',[T_STONE]:'#7d838a',[T_GOLD]:'#c9a03f'};
 function drawMinimap(){
   if(!tiles) return;
@@ -2597,12 +2767,20 @@ function cycleSpeed(){
   toast('⏩ Velocidad x'+S.speed);
 }
 document.getElementById('z-speed').onclick=cycleSpeed;
+document.getElementById('idle-flag').onclick=()=>openSheet('pop');
+document.getElementById('raid-flag').onclick=()=>{
+  if(!enemies.length) return;
+  const e=enemies[0];
+  cam.x=e.px - cw/cam.z/2;
+  cam.y=e.py - ch/cam.z/2;
+  clampCam();
+};
 document.getElementById('army-flag').onclick=()=>{
   S.stance = S.stance==='attack' ? 'home' : 'attack';
   if(S.stance==='attack'){
     toast('🗡️ ¡Tu ejército marcha hacia el enemigo!');
     SFX.horn();
-  } else toast('🛡️ Tu ejército vuelve a defender la ciudad.');
+  } else { S.atkFocus=null; toast('🛡️ Tu ejército vuelve a defender la ciudad.'); }
   for(const s of soldiers) s.path=null;
   updateHUD();
 };
@@ -2731,7 +2909,10 @@ function refreshCtx(){
           <span class="c-title">Lobo</span>
           <button class="c-close">✕</button>
         </div>
-        <div class="c-desc">Peligroso: persigue a los aldeanos alejados de la ciudad y les hace soltar la carga. Cerca del centro urbano están a salvo.</div>`;
+        <div class="c-desc">Peligroso: persigue a los aldeanos alejados de la ciudad y les hace soltar la carga. ${soldiers.length?'Un soldado puede darle caza (+🍖40).':'Entrena un soldado en el ⚔️ Cuartel para poder darle caza.'}</div>
+        <div class="c-actions"><button id="ctx-wolfatk" ${soldiers.length?'':'disabled'}>⚔️ Atacar con un soldado</button></div>`;
+      const wb=ctxEl.querySelector('#ctx-wolfatk');
+      if(wb) wb.onclick=()=>attackWolf(a);
     }
     ctxEl.querySelector('.c-close').onclick=closeCtx;
     return;
@@ -2740,14 +2921,27 @@ function refreshCtx(){
     const eb=ctxState.eb;
     if(!S.enemyBuilds || !S.enemyBuilds.includes(eb)){ closeCtx(); return; }
     const names={etc:'Centro urbano enemigo', ehut:'Choza enemiga', etower:'Torre enemiga'};
+    const focused = S.atkFocus && S.atkFocus.x===eb.x && S.atkFocus.y===eb.y;
     ctxEl.innerHTML=`
       <div class="c-head">
         <span class="c-icon">🏴</span>
         <span class="c-title">${names[eb.id]} — ${Math.ceil(eb.hp)}/${eb.max}</span>
         <button class="c-close">✕</button>
       </div>
-      <div class="c-desc">${eb.id==='etc'?'Destrúyelo para ganar la partida.':'Defiende el poblado rival.'} Entrena soldados en el ⚔️ Cuartel y pulsa el banderín del ejército para atacar.</div>`;
+      <div class="c-desc">${eb.id==='etc'?'Destrúyelo para ganar la partida.':'Defiende el poblado rival.'} ${soldiers.length?'':'Entrena soldados en el ⚔️ Cuartel para poder atacar.'}</div>
+      <div class="c-actions">
+        <button id="ctx-ebatk" ${soldiers.length && !focused?'':'disabled'}>${focused?'🗡️ Atacando este objetivo…':'🗡️ Atacar este edificio'}</button>
+      </div>`;
     ctxEl.querySelector('.c-close').onclick=closeCtx;
+    const ab=ctxEl.querySelector('#ctx-ebatk');
+    if(ab) ab.onclick=()=>{
+      S.atkFocus={x:eb.x, y:eb.y};
+      S.stance='attack';
+      for(const s of soldiers) s.path=null;
+      SFX.horn();
+      toast(`🗡️ ¡Tu ejército marcha contra ${names[eb.id].toLowerCase()}!`);
+      closeCtx(); updateHUD();
+    };
     return;
   }
   if(ctxState.kind==='node'){
@@ -2791,6 +2985,10 @@ function refreshCtx(){
         const disabled = locked || !canPay(u.cost) || totalPop() >= popCap();
         html += `<button data-train="${k}" ${disabled ? 'disabled' : ''}>${u.icon} ${u.name} (${locked ? AGES[u.needAge].name : costTxt(u.cost)})</button>`;
       }
+      for(const k in UNITS){
+        const n=soldiers.filter(s=>s.kind===k).length;
+        if(n) html += `<button data-disband="${k}">🏳️ Licenciar ${UNITS[k].name.toLowerCase()} (×${n})</button>`;
+      }
       extra = html;
     }
     let upBtn='';
@@ -2816,6 +3014,7 @@ function refreshCtx(){
       </div>`;
     ctxEl.querySelector('.c-close').onclick=closeCtx;
     ctxEl.querySelectorAll('[data-train]').forEach(btn=>btn.onclick=()=>trainUnit(btn.dataset.train, b));
+    ctxEl.querySelectorAll('[data-disband]').forEach(btn=>btn.onclick=()=>disband(btn.dataset.disband));
     const rb=ctxEl.querySelector('#ctx-recruit');
     if(rb) rb.onclick=recruit;
     const ub=ctxEl.querySelector('#ctx-upgrade');
@@ -2896,7 +3095,8 @@ function refreshSheet(){
         {give:'oro', get:'comida', giveAmt:60, getAmt:100},
         {give:'oro', get:'madera', giveAmt:60, getAmt:100},
         {give:'oro', get:'piedra', giveAmt:60, getAmt:100},
-      ];
+      ].map(d=>({...d, ...dealTerms(d)}));
+      html+=`<div class="sheet-note">Los precios suben si abusas de un trato y se recuperan con el tiempo.</div>`;
       for(const d of deals){
         html+=itemRow(`${RES_META[d.give].icon}➜${RES_META[d.get].icon}`,
           `Cambiar ${d.giveAmt} de ${RES_META[d.give].name.toLowerCase()}`,
@@ -2980,6 +3180,10 @@ function refreshSheet(){
         <button id="sh-save" style="flex:1;padding:10px">💾 Guardar</button>
         <button id="sh-reset" style="flex:1;padding:10px;color:var(--red)">🔥 Reiniciar</button>
       </div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="sh-export" style="flex:1;padding:10px">📤 Exportar partida</button>
+        <button id="sh-import" style="flex:1;padding:10px">📥 Importar partida</button>
+      </div>
       <div class="sheet-note">La partida se guarda sola cada 10 s en este dispositivo. Los aldeanos siguen trabajando (al 50%) aunque cierres el juego.</div>
       ${matchMedia('(pointer:fine)').matches ? `<div class="sheet-note">⌨️ <b style="color:var(--gold)">Atajos</b>: <b>B</b> construir · <b>T</b> tecnología · <b>M</b> mercado · <b>A</b> aldeanos · <b>E</b> edad · <b>G</b> este panel · <b>R</b> reclutar · <b>F</b> velocidad x1/x2/x3 · <b>Q</b> repetir último edificio · <b>Shift</b>+clic colocar en cadena · <b>flechas</b> mover cámara · <b>+/−</b> zoom (o asignar aldeanos con un recurso seleccionado) · <b>H</b> o <b>espacio</b> centrar · <b>Esc</b> cerrar</div>`:''}`;
     sheetEl.innerHTML=html;
@@ -2987,6 +3191,28 @@ function refreshSheet(){
     sheetEl.querySelector('#sh-save').onclick=()=>{ save(); toast('💾 Partida guardada.'); };
     sheetEl.querySelector('#sh-reset').onclick=()=>{
       if(confirm('¿Seguro que quieres empezar de cero? Se borrará todo el progreso.')) hardReset();
+    };
+    sheetEl.querySelector('#sh-export').onclick=async ()=>{
+      save();
+      const data=localStorage.getItem(SAVE_KEY);
+      if(!data){ toast('No hay partida que exportar.'); return; }
+      try{
+        await navigator.clipboard.writeText(data);
+        toast('📤 Partida copiada al portapapeles. Guárdala en tus notas.');
+      }catch(e){
+        prompt('Copia este texto y guárdalo en tus notas:', data);
+      }
+    };
+    sheetEl.querySelector('#sh-import').onclick=()=>{
+      const txt=prompt('Pega aquí la partida exportada:');
+      if(!txt) return;
+      try{
+        const d=JSON.parse(txt);
+        if(!d.S || !d.tiles) throw new Error('formato');
+        localStorage.setItem(SAVE_KEY, txt);
+        noSave=true;
+        location.reload();
+      }catch(e){ toast('❌ Ese texto no es una partida válida.'); }
     };
   }
   const closeBtn=sheetEl.querySelector('.sh-close');
@@ -3027,6 +3253,13 @@ function updateHUD(){
     af.style.display='block';
     af.textContent=`⚔️ ${soldiers.length} · ${S.stance==='attack'?'🗡️ Atacando':'🛡️ Defendiendo'} (toca para cambiar)`;
   } else af.style.display='none';
+  // aldeanos sin tarea
+  const idf=document.getElementById('idle-flag');
+  const nIdle=idleCount();
+  if(nIdle>0 && !placing){
+    idf.style.display='block';
+    idf.textContent=`😴 ${nIdle} sin tarea`;
+  } else idf.style.display='none';
   const btnA=document.getElementById('btn-age');
   if(S.age+1>=AGES.length){ btnA.style.display='none'; }
   else btnA.classList.toggle('locked', !ageReady());
@@ -3087,16 +3320,29 @@ function simTick(){
     regrow(Date.now());
     if(S.mode==='oleadas' && !enemies.length && S.tcHp<tcMaxHp()) S.tcHp=Math.min(tcMaxHp(), S.tcHp+3*dt);
     tickSeason(dt);
+    // los precios del mercado se relajan un punto cada 20 s
+    S.mktT=(S.mktT||0)+dt;
+    if(S.mktT>=20){
+      S.mktT=0;
+      if(S.mkt) for(const k in S.mkt) S.mkt[k]=Math.max(0, S.mkt[k]-1);
+    }
     S.stats.time+=dt;
   }
 }
-setInterval(simTick, 100);
-setInterval(()=>{ updateHUD(); checkAchs(); checkMission(); if(ctxState) refreshCtx(); if(sheetKind==='pop'||sheetKind==='age'||sheetKind==='market') refreshSheet(); }, 600);
+// la simulación corre dentro del bucle de dibujo (60 fps → movimiento suave);
+// si la pestaña queda oculta, rAF se pausa y este intervalo la mantiene viva
+setInterval(()=>{ if(document.hidden) simTick(); }, 250);
+setInterval(()=>{ updateHUD(); checkAchs(); checkMission(); updateTut(); if(ctxState) refreshCtx(); if(sheetKind==='pop'||sheetKind==='age'||sheetKind==='market') refreshSheet(); }, 600);
 setInterval(save, 10000);
 setInterval(()=>{ if(wearDirty){ wearDirty=false; staticDirty=true; } }, 12000);   // repinta los caminos
 window.addEventListener('beforeunload', save);
 document.addEventListener('visibilitychange', ()=>{ if(document.hidden) save(); });
 window.addEventListener('resize', resizeCanvas);
+// al girar el móvil, el evento resize puede llegar antes de que el layout se asiente
+// y el lienzo queda desincronizado con el tamaño real (los toques caen desplazados).
+// ResizeObserver detecta el tamaño definitivo del contenedor, pase lo que pase.
+if(window.ResizeObserver) new ResizeObserver(resizeCanvas).observe(document.getElementById('map-wrap'));
+window.addEventListener('orientationchange', ()=>{ setTimeout(resizeCanvas, 250); setTimeout(resizeCanvas, 800); });
 
 /* ---------------- Menú de modos ---------------- */
 let menuOpen=false;
@@ -3142,7 +3388,7 @@ function renderMenuStep(step){
     title.textContent='Tamaño de Mapa'; sub.textContent='Dimensiones del mundo';
     addBtn('🗺️', 'Normal', '26x26. Partida estándar y rápida.', ()=> { menuStateObj.size='normal'; renderMenuStep('diff'); });
     addBtn('🌍', 'Grande', '36x36. Más recursos y distancia.', ()=> { menuStateObj.size='grande'; renderMenuStep('diff'); });
-    addBtn('🌌', 'Enorme', '50x50. Ideal para partidas épicas.', ()=> { menuStateObj.size='enorme'; renderMenuStep('biome'); });
+    addBtn('🌌', 'Enorme', '50x50. Ideal para partidas épicas.', ()=> { menuStateObj.size='enorme'; renderMenuStep('diff'); });
   } else if(step==='diff'){
     title.textContent='Dificultad'; sub.textContent='Frecuencia de incursiones y eventos';
     addBtn('🟢', 'Fácil', 'Menos invasores, más eventos buenos.', ()=> { menuStateObj.diff='facil'; renderMenuStep('biome'); });
@@ -3172,8 +3418,7 @@ function pickMode(){
   save();
   log(`${MODES[mode].icon} Nueva partida en modo ${MODES[mode].name}.`, 'age');
   log('🪨 Tu tribu se asienta junto al río.');
-  setTimeout(()=>toast('👉 Toca un 🌲 bosque o unas 🍇 bayas y pulsa ＋ para enviar aldeanos.'), 700);
-  setTimeout(()=>toast('🏗️ Con «Construir» colocas edificios tocando el mapa.'), 6000);
+  updateTut();
   if(mode==='oleadas') setTimeout(()=>toast('🌊 La primera oleada llega en 2 min y medio. Tu centro urbano dispara, y las 🏹 torres ya están disponibles.'), 11000);
   if(mode==='conquista') setTimeout(()=>toast('🗡️ Un poblado rival se esconde en la niebla. Desarrolla tu economía, construye un ⚔️ Cuartel y entrena un ejército.'), 11000);
   updateHUD();
@@ -3198,6 +3443,13 @@ centerCam();
 if(S.won) winGame();
 updateHUD();
 requestAnimationFrame(draw);
+
+/* ---------------- PWA: jugar sin conexión ---------------- */
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+  });
+}
 </script>
 </body>
 </html>
