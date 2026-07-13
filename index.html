@@ -362,7 +362,7 @@ const BUILDINGS = [
   {id:'mercado',    age:1, icon:'⚖️', name:'Mercado',      desc:'Permite comerciar · +10% oro', cost:{madera:150, piedra:50}, mods:{mult:{oro:.10}, trade:true}, place:'grass'},
   {id:'torre',      age:1, icon:'🏹', name:'Torre de vigilancia', desc:'Dispara a los invasores (alcance 4,5 casillas)', cost:{madera:60, piedra:50}, mods:{}, attack:{range:4.5, dps:12}, place:'grass'},
   {id:'cuartel',    age:1, icon:'⚔️', name:'Cuartel',      desc:'Entrena soldados para defender la ciudad y atacar', cost:{madera:120, piedra:60}, mods:{}, place:'grass'},
-  {id:'muralla',    age:2, icon:'🧱', name:'Muralla',      desc:'Protege de saqueos (-75% pérdidas)', cost:{piedra:300, madera:100}, mods:{protect:.75}, place:'grass', max:1},
+  {id:'muralla',    age:2, icon:'🧱', name:'Muralla',      desc:'Tramo de muro que bloquea a los invasores: tendrán que derribarlo. Rodea tu ciudad (además, -30% pérdidas en desgracias)', cost:{piedra:40, madera:10}, mods:{protect:.3}, place:'grass', wall:true, hp:300},
   {id:'templo',     age:2, icon:'⛩️', name:'Templo',       desc:'+8% a toda la producción', cost:{piedra:200, oro:100}, mods:{global:.08}, place:'grass'},
   {id:'herreria',   age:2, icon:'🔨', name:'Herrería',     desc:'+15% madera y piedra', cost:{madera:150, piedra:100, oro:50}, mods:{mult:{madera:.15, piedra:.15}}, place:'grass'},
   {id:'biblioteca', age:3, icon:'📚', name:'Biblioteca',   desc:'+10% global · tecnología -15% coste', cost:{madera:300, piedra:200, oro:150}, mods:{global:.10, techDisc:.15}, place:'grass', max:1},
@@ -876,6 +876,7 @@ function newGame(opts){
   initFog(false);
   reveal(CX, CY, 5.5);
   wear.fill(0);
+  rebuildWallGrid();
   spawnVillagers();
   spawnSoldiers();
 }
@@ -925,7 +926,8 @@ function carryCap(){ return CARRY_CAP + M.carry; }
 function walkSpeed(){ return WALK_SPEED * (1+M.speed) * TILE_PX; }
 function recruitCost(){ return Math.floor(25 * Math.pow(1.15, Math.max(0,villagers.length-3))); }
 function buildCost(b){
-  const n = buildCount(b.id), out={};
+  // los tramos de muralla no se encarecen: un anillo entero debe ser viable
+  const n = b.wall ? 0 : buildCount(b.id), out={};
   for(const r in b.cost) out[r] = Math.floor(b.cost[r] * Math.pow(1.15,n) * (1-M.buildDisc));
   return out;
 }
@@ -963,12 +965,19 @@ function toast(msg){
   toastTimer=setTimeout(()=>t.classList.remove('show'), 3000);
 }
 
-/* ---------------- Búsqueda de caminos (BFS 8-dir, solo el agua bloquea:
-   los aldeanos y los invasores caminan entre los edificios de la ciudad) ---------------- */
-function findPath(sx,sy,tx,ty){
+/* ---------------- Búsqueda de caminos (BFS 8-dir; el agua bloquea a todos,
+   las murallas solo a los invasores: tus aldeanos y soldados cruzan por sus puertas) ---------------- */
+let wallGrid=new Uint8Array(W*H);
+function rebuildWallGrid(){
+  if(wallGrid.length!==W*H) wallGrid=new Uint8Array(W*H);
+  else wallGrid.fill(0);
+  if(S) for(const b of S.builds) if(b.id==='muralla') wallGrid[idx(b.x,b.y)]=1;
+}
+const isWallAt=(x,y)=> inB(x,y) && wallGrid[idx(x,y)]===1;
+function findPath(sx,sy,tx,ty,foe){
   if(!inB(tx,ty)) return null;
   if(sx===tx && sy===ty) return [[tx,ty]];
-  const blocked=(x,y)=> tiles[idx(x,y)].t===T_WATER;
+  const blocked=(x,y)=> tiles[idx(x,y)].t===T_WATER || (foe && wallGrid[idx(x,y)]===1);
   if(blocked(tx,ty)) return null;
   const prev = new Int32Array(W*H).fill(-1);
   const q=[idx(sx,sy)]; let qh=0; prev[idx(sx,sy)]=idx(sx,sy);
@@ -1248,8 +1257,9 @@ function startPlacing(def){
   placing=def;
   placeCache=null;
   closeSheet(); closeCtx();
-  document.getElementById('place-txt').textContent =
-    `${def.icon} Toca una casilla de hierba ${def.placeTxt? def.placeTxt:''} para colocar: ${def.name} (${costTxt(buildCost(def))})`;
+  document.getElementById('place-txt').textContent = def.wall
+    ? `🧱 Arrastra el dedo para levantar muralla (${costTxt(buildCost(def))} por tramo). Pulsa ✕ al terminar.`
+    : `${def.icon} Toca una casilla de hierba ${def.placeTxt? def.placeTxt:''} para colocar: ${def.name} (${costTxt(buildCost(def))})`;
   document.getElementById('place-banner').style.display='flex';
 }
 function stopPlacing(){
@@ -1276,28 +1286,48 @@ function placeError(def,x,y){
   if(def.place==='adj_gold' && !adjHas(x,y,T_GOLD)) return 'Debe estar junto a una 🪙 veta de oro.';
   return null;
 }
-function tryPlace(x,y){
-  const def=placing;
-  const err=placeError(def,x,y);
-  if(err){ toast('❌ '+err); return; }
+// coloca UN edificio; devuelve true si lo consiguió (silencioso para el pintado de muros)
+function placeOne(def, x, y, quiet){
+  if(placeError(def,x,y)) return false;
   const c=buildCost(def);
-  if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); stopPlacing(); return; }
+  if(!canPay(c)) return false;
   pay(c);
-  S.builds.push({id:def.id, x, y, lvl:1});
+  const b={id:def.id, x, y, lvl:1};
+  if(def.wall) b.hp=def.hp;
+  S.builds.push(b);
+  if(def.wall) rebuildWallGrid();
   placeCache=null;
   reveal(x, y, 3.5);
   M=calcMods();
   staticDirty=true;
-  SFX.build();
-  log(`${def.icon} Has construido: ${def.name}.`);
+  if(!quiet){ SFX.build(); log(`${def.icon} Has construido: ${def.name}.`); }
   lastPlacedDef=def;
+  if(!S.tut.built){ S.tut.built=true; }
+  return true;
+}
+function tryPlace(x,y){
+  const def=placing;
+  // muralla: cada toque coloca un tramo y sigue en modo pintar (no cierra el modo)
+  if(def.wall){
+    const c=buildCost(def);
+    if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); stopPlacing(); return; }
+    const err=placeError(def,x,y);
+    if(err){ toast('❌ '+err); return; }
+    placeOne(def, x, y);
+    updateHUD();
+    return;
+  }
+  const err=placeError(def,x,y);
+  if(err){ toast('❌ '+err); return; }
+  const c=buildCost(def);
+  if(!canPay(c)){ toast('Recursos insuficientes: '+costTxt(c)); stopPlacing(); return; }
+  placeOne(def, x, y);
   if(def.mods.win){ stopPlacing(); winGame(); return; }
   // con Shift pulsado se sigue colocando en cadena (PC)
   if(shiftHeld && !(def.max && buildCount(def.id)>=def.max)){
     document.getElementById('place-txt').textContent =
       `${def.icon} Colocando en cadena: ${def.name} (${costTxt(buildCost(def))}) — suelta Shift o pulsa Esc para terminar`;
   } else stopPlacing();
-  if(!S.tut.built){ S.tut.built=true; }
   updateHUD();
 }
 /* ---------------- Niveles de edificio ---------------- */
@@ -1334,6 +1364,7 @@ function demolish(b){
   const cap=resCap();
   const inv=Math.pow(2,(b.lvl||1))-1;   // 1, 3 o 7 veces el coste base según nivel
   for(const r in def.cost) S.res[r]=Math.min(cap, S.res[r]+Math.floor(def.cost[r]*inv*.5));
+  if(def.wall){ rebuildWallGrid(); for(const e of enemies){ e.path=null; if(e.wall===b) e.wall=null; } }
   M=calcMods(); staticDirty=true;
   unreachable.clear();   // al demoler pueden abrirse caminos
   log(`💥 Has demolido: ${def.name} (recuperas la mitad de lo invertido).`);
@@ -1940,6 +1971,25 @@ function gameOver(){
   v.classList.add('show');
   SFX.bad();
 }
+function nearestWall(px,py){
+  let best=null, bd=1e9;
+  for(const b of S.builds){
+    if(b.id!=='muralla') continue;
+    const d=Math.hypot((b.x+0.5)*TILE_PX-px, (b.y+0.5)*TILE_PX-py);
+    if(d<bd){ bd=d; best=b; }
+  }
+  return best;
+}
+function destroyWall(w){
+  S.builds=S.builds.filter(b=>b!==w);
+  rebuildWallGrid();
+  M=calcMods(); staticDirty=true; placeCache=null;
+  unreachable.clear();
+  for(const e of enemies){ e.path=null; if(e.wall===w) e.wall=null; }
+  SFX.bad();
+  log('💥 ¡Los invasores derriban un tramo de muralla!', 'bad');
+  toast('💥 ¡Han derribado un tramo de tu muralla!');
+}
 function pickLoot(e){
   let best='comida';
   for(const r of RES) if(S.res[r]>S.res[best]) best=r;
@@ -1988,11 +2038,44 @@ function updateEnemy(e, dt){
     case 'approach': {
       if(!e.path){
         const [ex,ey]=[Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX)];
-        const p=findPath(ex,ey,CX,CY);
-        if(!p){ removeEnemy(e,false); return; }
+        const p=findPath(ex,ey,CX,CY,true);
+        if(!p){
+          // la muralla le corta el paso: pasa a asediar el tramo más cercano
+          const w=nearestWall(e.px,e.py);
+          if(!w){ removeEnemy(e,false); return; }
+          e.state='siege'; e.wall=w; e.path=null;
+          break;
+        }
         e.path=p; e.pi=0;
       }
       if(stepPath(e,dt,ENEMY_SPEED * (S.biome==='tundra'?0.9:1))){ e.state='loot'; e.timer=4; pickLoot(e); }
+      break;
+    }
+    case 'siege': {
+      const w=e.wall;
+      if(!w || !S.builds.includes(w)){ e.state='approach'; e.path=null; e.wall=null; break; }
+      const wx=(w.x+0.5)*TILE_PX, wy=(w.y+0.5)*TILE_PX;
+      if(Math.hypot(wx-e.px, wy-e.py)<=1.25*TILE_PX){
+        w.hp-=(6+3*S.age)*dt;
+        if(w.hp<=0){ destroyWall(w); e.state='approach'; e.path=null; e.wall=null; }
+      } else {
+        // camina hasta una casilla pegada al tramo
+        e.sg=(e.sg||0)-dt;
+        if(e.sg<=0 || !e.path || e.pi>=e.path.length){
+          e.sg=1.5;
+          const [ex,ey]=[Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX)];
+          let best=null;
+          for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){
+            const nx=w.x+dx, ny=w.y+dy;
+            if(!inB(nx,ny)) continue;
+            const p=findPath(ex,ey,nx,ny,true);
+            if(p && (!best || p.length<best.length)) best=p;
+          }
+          if(!best){ removeEnemy(e,false); return; }
+          e.path=best; e.pi=0;
+        }
+        stepPath(e,dt,ENEMY_SPEED * (S.biome==='tundra'?0.9:1));
+      }
       break;
     }
     case 'loot': {
@@ -2012,7 +2095,7 @@ function updateEnemy(e, dt){
     case 'flee': {
       if(!e.path){
         const [ex,ey]=[Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX)];
-        const p=findPath(ex,ey,e.sx,e.sy);
+        const p=findPath(ex,ey,e.sx,e.sy,true);
         if(!p){ removeEnemy(e,true); return; }
         e.path=p; e.pi=0;
       }
@@ -2031,7 +2114,7 @@ function updateEnemy(e, dt){
         if(e.gr<=0 || !e.path || e.pi>=e.path.length){
           e.gr=1;
           const p=findPath(Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX),
-                           Math.floor(s.px/TILE_PX), Math.floor(s.py/TILE_PX));
+                           Math.floor(s.px/TILE_PX), Math.floor(s.py/TILE_PX), true);
           if(p){ e.path=p; e.pi=0; }
         }
         stepPath(e, dt, ENEMY_SPEED * (S.biome==='tundra'?0.9:1));
@@ -2076,7 +2159,7 @@ function save(){
   syncSolds();
   if(fog) S.fogStr=Array.from(fog).join('');
   const Sclean={...S,
-    builds:S.builds.map(b=>({id:b.id, x:b.x, y:b.y, lvl:b.lvl||1})),
+    builds:S.builds.map(b=>({id:b.id, x:b.x, y:b.y, lvl:b.lvl||1, ...(b.hp!=null?{hp:Math.round(b.hp)}:{})})),
     enemyBuilds:S.enemyBuilds ? S.enemyBuilds.map(e=>({id:e.id, x:e.x, y:e.y, hp:Math.round(e.hp), max:e.max, atk:e.atk})) : null,
   };
   const data={S:Sclean, tiles:tiles.map(c=>[c.t,Math.round(c.amt)]), initialTrees};
@@ -2102,7 +2185,8 @@ function load(){
     S.mode = S.mode||'clasico';
     S.wave = S.wave||0;
     if(S.tcHp===undefined) S.tcHp=600;
-    S.builds.forEach(b=>{ b.lvl=b.lvl||1; });
+    S.builds.forEach(b=>{ b.lvl=b.lvl||1; if(b.id==='muralla' && b.hp==null) b.hp=BLD.muralla.hp; });
+    rebuildWallGrid();
     S.speed = S.speed||1;
     S.mission = S.mission||0;
     S.treasures = S.treasures||[];
@@ -2268,12 +2352,24 @@ function drawBuilding(c, b){
       for(let i=0;i<3;i++) bx(c, p+13+i*8, q+2, 6, 5, '#aaa390', 1);
       bx(c, p+22, q+22, 4, 8, '#2c2419', 1);
       break;
-    case 'muralla':
-      bx(c, p+4, q+16, 40, 24, '#98917f', 2);
-      for(let i=0;i<4;i++) bx(c, p+5+i*10, q+10, 7, 7, '#a8a18e', 1);
-      c.strokeStyle='#7d7668'; c.lineWidth=1;
-      c.beginPath(); c.moveTo(p+4,q+28); c.lineTo(p+44,q+28); c.stroke();
+    case 'muralla': {
+      // se conecta con los tramos vecinos: forma un muro continuo
+      const wN=isWallAt(b.x,b.y-1), wS=isWallAt(b.x,b.y+1), wE=isWallAt(b.x+1,b.y), wW=isWallAt(b.x-1,b.y);
+      const cxp=p+24, cyp=q+24, th=11;
+      c.fillStyle='#98917f';
+      c.fillRect(cxp-th, cyp-th, th*2, th*2);                 // torreón central
+      if(wN) c.fillRect(cxp-th, q, th*2, 24);
+      if(wS) c.fillRect(cxp-th, cyp, th*2, 24);
+      if(wE) c.fillRect(cxp, cyp-th, 24, th*2);
+      if(wW) c.fillRect(p, cyp-th, 24, th*2);
+      // almenas del torreón
+      c.fillStyle='#aaa390';
+      for(let i=0;i<2;i++) c.fillRect(cxp-th+2+i*10, cyp-th-4, 6, 6);
+      // línea de sombra
+      c.strokeStyle='rgba(60,50,36,.5)'; c.lineWidth=1;
+      c.strokeRect(cxp-th, cyp-th, th*2, th*2);
       break;
+    }
     case 'templo':
       bx(c, p+8, q+38, 32, 4, '#c9c2b0', 1);
       bx(c, p+11, q+18, 5, 20, '#d8d2c0', 1); bx(c, p+21.5, q+18, 5, 20, '#d8d2c0', 1); bx(c, p+32, q+18, 5, 20, '#d8d2c0', 1);
@@ -2762,6 +2858,15 @@ function draw(){
     ctx2d.fillStyle='rgba(0,0,0,.55)'; ctx2d.fillRect(bx3, by3, 40, 5);
     ctx2d.fillStyle='#e07a5f'; ctx2d.fillRect(bx3, by3, 40*Math.max(0,eb.hp/eb.max), 5);
   }
+  // vida de las murallas dañadas
+  for(const b of S.builds){
+    if(b.id!=='muralla' || b.hp==null || b.hp>=BLD.muralla.hp) continue;
+    const wx3=b.x*TILE_PX+6, wy3=b.y*TILE_PX-4;
+    ctx2d.fillStyle='rgba(0,0,0,.55)'; ctx2d.fillRect(wx3, wy3, 36, 4);
+    const f=Math.max(0,b.hp/BLD.muralla.hp);
+    ctx2d.fillStyle= f>0.5?'#c9c2b0':f>0.25?'#e8c06a':'#e07a5f';
+    ctx2d.fillRect(wx3, wy3, 36*f, 4);
+  }
   // invasores (solo en terreno descubierto)
   for(const e of enemies){
     const etx=Math.floor(e.px/TILE_PX), ety=Math.floor(e.py/TILE_PX);
@@ -2871,10 +2976,33 @@ mmc.addEventListener('pointerdown', e=>{
 /* ---------------- Entrada (pan / zoom / tap) ---------------- */
 const pointers=new Map();
 let dragMoved=false, pinch0=null;
+// pintado de murallas por arrastre (un dedo pinta; dos dedos hacen zoom)
+let wallPaint=false, lastPaintTile=null, lastWallSnd=0, lastWallWarn=0;
+function paintWallAt(clientX, clientY){
+  const rect=canvas.getBoundingClientRect();
+  const tx=Math.floor(((clientX-rect.left)/cam.z+cam.x)/TILE_PX);
+  const ty=Math.floor(((clientY-rect.top)/cam.z+cam.y)/TILE_PX);
+  const key=tx+','+ty;
+  if(key===lastPaintTile) return;
+  lastPaintTile=key;
+  if(!canPay(buildCost(placing))){
+    if(performance.now()-lastWallWarn>1500){ lastWallWarn=performance.now(); toast('🪨 Sin recursos para más muralla.'); }
+    return;
+  }
+  if(placeError(placing,tx,ty)) return;    // sobre agua/edificios/niebla: se salta en silencio
+  if(placeOne(placing, tx, ty, true)){
+    if(performance.now()-lastWallSnd>110){ lastWallSnd=performance.now(); SFX.build(); }
+    updateHUD();
+  }
+}
 canvas.addEventListener('pointerdown', e=>{
   canvas.setPointerCapture(e.pointerId);
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY,sx:e.clientX,sy:e.clientY});
   if(pointers.size===1) dragMoved=false;
+  if(pointers.size===1 && placing && placing.wall){
+    wallPaint=true; lastPaintTile=null;
+    paintWallAt(e.clientX, e.clientY);
+  }
   if(pointers.size===2){
     const ps=[...pointers.values()];
     pinch0={d:Math.hypot(ps[0].x-ps[1].x, ps[0].y-ps[1].y), z:cam.z};
@@ -2886,7 +3014,9 @@ canvas.addEventListener('pointermove', e=>{
   const dx=e.clientX-p.x, dy=e.clientY-p.y;
   p.x=e.clientX; p.y=e.clientY;
   if(Math.hypot(e.clientX-p.sx, e.clientY-p.sy)>8) dragMoved=true;
-  if(pointers.size===1){
+  if(pointers.size===1 && wallPaint){
+    paintWallAt(e.clientX, e.clientY);
+  } else if(pointers.size===1){
     cam.x-=dx/cam.z; cam.y-=dy/cam.z; clampCam();
   } else if(pointers.size===2 && pinch0){
     const ps=[...pointers.values()];
@@ -2904,6 +3034,8 @@ function endPointer(e){
   const p=pointers.get(e.pointerId);
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinch0=null;
+  // fin de un trazo de muralla: no se interpreta como toque
+  if(wallPaint && pointers.size===0){ wallPaint=false; lastPaintTile=null; return; }
   if(p && !dragMoved && pointers.size===0 && e.type==='pointerup'){
     const rect=canvas.getBoundingClientRect();
     const wx=(e.clientX-rect.left)/cam.z+cam.x;
@@ -3584,6 +3716,11 @@ function simTick(){
     maybeWave(Date.now());
     regrow(Date.now());
     if(S.mode==='oleadas' && !enemies.length && S.tcHp<tcMaxHp()) S.tcHp=Math.min(tcMaxHp(), S.tcHp+3*dt);
+    // las murallas dañadas (pero en pie) se reparan solas entre incursiones
+    if(!enemies.length){
+      const wmax=BLD.muralla.hp;
+      for(const b of S.builds) if(b.id==='muralla' && b.hp!=null && b.hp<wmax) b.hp=Math.min(wmax, b.hp+8*dt);
+    }
     tickSeason(dt);
     // los precios del mercado se relajan un punto cada 20 s
     S.mktT=(S.mktT||0)+dt;
