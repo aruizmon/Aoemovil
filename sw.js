@@ -1,6 +1,6 @@
-/* Service worker de Imperios: permite jugar sin conexión.
+/* Service worker de Montequinto: permite jugar sin conexión.
    Al publicar una versión nueva del juego, sube el número de CACHE. */
-const CACHE = 'imperios-v1';
+const CACHE = 'montequinto-v1';
 const ASSETS = [
   './',
   './index.html',
