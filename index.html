@@ -82,6 +82,21 @@
     padding:6px 10px; font-size:13px; font-weight:700; color:var(--gold); cursor:pointer;
   }
 
+  /* ---------- Aviso de instalación ---------- */
+  #a2hs{
+    position:absolute; left:8px; right:8px; bottom:8px; z-index:7; display:none;
+    background:rgba(42,32,24,.97); border:1px solid var(--gold); border-radius:12px;
+    padding:10px 12px; box-shadow:0 4px 16px rgba(0,0,0,.5);
+    max-width:440px; margin:0 auto;
+  }
+  #a2hs .a-txt{font-size:13px; line-height:1.4; margin-bottom:8px;}
+  #a2hs .a-row{display:flex; gap:8px;}
+  #a2hs button{padding:8px 12px; font-size:12.5px; font-weight:600;}
+  #a2hs #a2hs-how{flex:1; border-color:var(--gold);}
+  .inst-step{display:flex; gap:10px; align-items:flex-start; padding:8px 4px; border-bottom:1px solid #3a2d1e; font-size:13.5px; line-height:1.45;}
+  .inst-step:last-of-type{border-bottom:none;}
+  .inst-step .n{background:var(--gold); color:#241b12; font-weight:800; border-radius:50%; width:22px; height:22px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:12px;}
+
   /* ---------- Tutorial guiado ---------- */
   #tut{
     position:absolute; left:8px; right:8px; top:8px; z-index:6; display:none;
@@ -241,6 +256,13 @@
   <div id="raid-flag"></div>
   <div id="army-flag"></div>
   <div id="idle-flag"></div>
+  <div id="a2hs">
+    <div class="a-txt">📲 <b>Añádelo a tu pantalla de inicio</b>: pantalla completa sin barras del navegador, icono propio y juega sin conexión.</div>
+    <div class="a-row">
+      <button id="a2hs-how">Ver cómo se hace</button>
+      <button id="a2hs-no">Ahora no</button>
+    </div>
+  </div>
   <div id="tut">
     <div class="t-txt"><span class="t-icon" id="tut-icon"></span><span id="tut-txt"></span></div>
     <div class="t-row">
@@ -3344,12 +3366,40 @@ function refreshSheet(){
       sheetEl.querySelector('#sh-advance').onclick=advanceAge;
     }
   }
+  else if(sheetKind==='install'){
+    html=`<h2>📲 Añadir a pantalla de inicio <button class="sh-close">✕ Cerrar</button></h2>
+      <div class="sheet-note">Instalado se abre a pantalla completa, con su propio icono 🏛️, y funciona aunque no tengas conexión.</div>`;
+    if(isIOSDev){
+      html+=`
+        <div class="inst-step"><span class="n">1</span><span>Toca el botón <b>Compartir</b> de Safari (el cuadrado con la flecha hacia arriba <b>⎋</b>, abajo en el centro).</span></div>
+        <div class="inst-step"><span class="n">2</span><span>Desliza hacia abajo en la lista y elige <b>«Añadir a pantalla de inicio»</b>.</span></div>
+        <div class="inst-step"><span class="n">3</span><span>Pulsa <b>Añadir</b> arriba a la derecha. ¡Ya tienes Montequinto como una app!</span></div>
+        <div class="sheet-note">⚠️ En iPhone esto solo funciona desde <b>Safari</b> (no desde Chrome u otros navegadores).</div>`;
+    } else if(deferredPrompt){
+      html+=`<button id="sh-install" style="width:100%;padding:12px;font-weight:700;font-size:15px">📲 Instalar ahora</button>`;
+    } else {
+      html+=`
+        <div class="inst-step"><span class="n">1</span><span>Abre el menú del navegador (<b>⋮</b> arriba a la derecha en Chrome).</span></div>
+        <div class="inst-step"><span class="n">2</span><span>Elige <b>«Añadir a pantalla de inicio»</b> o <b>«Instalar aplicación»</b>.</span></div>
+        <div class="inst-step"><span class="n">3</span><span>Confirma con <b>Instalar</b>. ¡Ya tienes Montequinto como una app!</span></div>`;
+    }
+    sheetEl.innerHTML=html;
+    const ib=sheetEl.querySelector('#sh-install');
+    if(ib) ib.onclick=async ()=>{
+      if(!deferredPrompt) return;
+      deferredPrompt.prompt();
+      try{ await deferredPrompt.userChoice; }catch(e){}
+      deferredPrompt=null;
+      closeSheet();
+    };
+  }
   else if(sheetKind==='more'){
     const st=S.stats;
     const h=Math.floor(st.time/3600), min=Math.floor((st.time%3600)/60);
     const nAch=Object.keys(S.ach).length;
     html=`<h2>⚙️ Más <button class="sh-close">✕ Cerrar</button></h2>
       <button id="sh-sound" style="width:100%;padding:10px;margin-bottom:10px;font-weight:600">${S.sound?'🔊 Sonido: activado':'🔇 Sonido: silenciado'}</button>
+      ${canInstall()?'<button id="sh-a2hs" style="width:100%;padding:10px;margin-bottom:10px;font-weight:600">📲 Añadir a pantalla de inicio</button>':''}
       <div class="sheet-note" style="margin-top:0"><b style="color:var(--gold)">📊 Estadísticas</b><br>
         ⏱️ Tiempo de juego: ${h?h+' h ':''}${min} min · ⚔️ Invasores abatidos: ${st.kills} · 🛡️ Incursiones vividas: ${st.raids} · ⚖️ Intercambios: ${st.trades}<br>
         🦌 Ciervos cazados: ${st.hunts||0} · ✨ Tesoros hallados: ${st.treasures||0} · 🔭 Mapa descubierto: ${fog?Math.round(fogCount/(W*H)*100):100}%<br>
@@ -3395,6 +3445,8 @@ function refreshSheet(){
     sheetEl.innerHTML=html;
     sheetEl.querySelector('#sh-sound').onclick=()=>{ S.sound=!S.sound; if(S.sound){ ac(); SFX.good(); } refreshSheet(); };
     sheetEl.querySelectorAll('[data-slot]').forEach(btn=>btn.onclick=()=>switchSlot(+btn.dataset.slot));
+    const ab2=sheetEl.querySelector('#sh-a2hs');
+    if(ab2) ab2.onclick=()=>openSheet('install');
     sheetEl.querySelector('#sh-save').onclick=()=>{ save(); toast('💾 Partida guardada.'); };
     sheetEl.querySelector('#sh-reset').onclick=()=>{
       if(confirm('¿Seguro que quieres empezar de cero? Se borrará todo el progreso.')) hardReset();
@@ -3595,6 +3647,28 @@ function renderMenuStep(step){
       if(key==='oleadas' && recs.bestWave) rec=`🏅 Mejor oleada: ${recs.bestWave}`;
       addBtn(m.icon, m.name, m.desc, ()=>{ menuStateObj.mode=key; renderMenuStep('size'); }, rec);
     }
+    if(canInstall()){
+      addBtn('📲', 'Añadir a pantalla de inicio', 'Pantalla completa, icono propio y juego sin conexión.', ()=>renderMenuStep('install'));
+    }
+  } else if(step==='install'){
+    title.textContent='Instalar'; sub.textContent='Montequinto como una app';
+    const steps = isIOSDev
+      ? ['Toca el botón Compartir de Safari (el cuadrado con la flecha ⎋, abajo en el centro).',
+         'Desliza hacia abajo y elige «Añadir a pantalla de inicio».',
+         'Pulsa «Añadir». ¡Listo, ya es una app! (solo funciona desde Safari)']
+      : ['Abre el menú del navegador (⋮ arriba a la derecha en Chrome).',
+         'Elige «Añadir a pantalla de inicio» o «Instalar aplicación».',
+         'Confirma con «Instalar». ¡Listo, ya es una app!'];
+    if(!isIOSDev && deferredPrompt){
+      addBtn('📲', 'Instalar ahora', 'Un toque y listo.', async ()=>{
+        deferredPrompt.prompt();
+        try{ await deferredPrompt.userChoice; }catch(e){}
+        deferredPrompt=null;
+        renderMenuStep('mode');
+      });
+    } else {
+      steps.forEach((s,i)=>addBtn(['1️⃣','2️⃣','3️⃣'][i], `Paso ${i+1}`, s, ()=>{}));
+    }
   } else if(step==='size'){
     title.textContent='Tamaño de Mapa'; sub.textContent='Dimensiones del mundo';
     addBtn('🗺️', 'Normal', '26x26. Partida estándar y rápida.', ()=> { menuStateObj.size='normal'; renderMenuStep('diff'); });
@@ -3614,7 +3688,7 @@ function renderMenuStep(step){
 
   // volver al paso anterior
   if(step!=='mode'){
-    const prev = step==='size' ? 'mode' : step==='diff' ? 'size' : 'diff';
+    const prev = (step==='size'||step==='install') ? 'mode' : step==='diff' ? 'size' : 'diff';
     const back=document.createElement('button');
     back.className='mode-card';
     back.style.opacity='.8';
@@ -3643,10 +3717,36 @@ function pickMode(){
   log(`${MODES[mode].icon} Nueva partida en modo ${MODES[mode].name}.`, 'age');
   log('🪨 Tu tribu se asienta junto al río.');
   updateTut();
+  if(typeof maybeA2HS==='function') maybeA2HS();
   if(mode==='oleadas') setTimeout(()=>toast('🌊 La primera oleada llega en 2 min y medio. Tu centro urbano dispara, y las 🏹 torres ya están disponibles.'), 11000);
   if(mode==='conquista') setTimeout(()=>toast('🗡️ Un poblado rival se esconde en la niebla. Desarrolla tu economía, construye un ⚔️ Cuartel y entrena un ejército.'), 11000);
   updateHUD();
 }
+
+/* ---------------- Aviso «añadir a pantalla de inicio» ---------------- */
+const A2HS_KEY='imperios-a2hs';
+const isStandalone = ()=> matchMedia('(display-mode: standalone)').matches || navigator.standalone===true;
+const isIOSDev = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const isAndroidDev = /android/i.test(navigator.userAgent);
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredPrompt=e; });
+function canInstall(){ return !isStandalone() && (isIOSDev || isAndroidDev); }
+let a2hsShown=false;
+function maybeA2HS(){
+  if(a2hsShown || !canInstall()) return;
+  try{ if(localStorage.getItem(A2HS_KEY)) return; }catch(e){}
+  setTimeout(()=>{
+    if(menuOpen || a2hsShown) return;
+    a2hsShown=true;
+    document.getElementById('a2hs').style.display='block';
+  }, 4000);
+}
+function dismissA2HS(){
+  document.getElementById('a2hs').style.display='none';
+  try{ localStorage.setItem(A2HS_KEY,'1'); }catch(e){}
+}
+document.getElementById('a2hs-no').onclick=dismissA2HS;
+document.getElementById('a2hs-how').onclick=()=>{ dismissA2HS(); openSheet('install'); };
 
 /* ---------------- Arranque ---------------- */
 const loaded=load();
@@ -3666,6 +3766,7 @@ resizeCanvas();
 centerCam();
 if(S.won) winGame();
 updateHUD();
+maybeA2HS();
 requestAnimationFrame(draw);
 
 /* ---------------- PWA: jugar sin conexión ---------------- */
@@ -3674,6 +3775,7 @@ if('serviceWorker' in navigator && location.protocol.startsWith('http')){
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
   });
 }
+
 </script>
 </body>
 </html>
