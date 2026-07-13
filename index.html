@@ -823,7 +823,7 @@ function newGame(opts){
     wave:0, tcHp:600, nextWave:0,
     speed:1, mission:0, treasures:[], seasonT:0, mkt:{}, mktT:0,
     tutStep:0, tutDone:false,
-    solds:[], stance:'home', enemyBuilds:null,
+    solds:[], stance:'home', enemyBuilds:null, rally:null, atkFocus:null, nextGrow:0,
     stats:{g:{comida:0,madera:0,piedra:0,oro:0}, kills:0, trades:0, raids:0, time:0, hunts:0, treasures:0, trained:0},
   };
   genTreasures();
@@ -1555,6 +1555,70 @@ function genEnemyVillage(){
     {id:'etower', x:ex+1, y:ey+1, hp:230, max:230, atk:{range:3.8, dps:10}},
   ];
 }
+/* --- el poblado rival también progresa --- */
+function enemyGrowMs(){ return (S.diff==='dificil' ? 70 : S.diff==='facil' ? 115 : 90)*1000; }
+function maybeEnemyGrow(nowMs){
+  if(S.mode!=='conquista' || S.won || S.dead || !S.enemyBuilds) return;
+  const etc=S.enemyBuilds.find(b=>b.id==='etc');
+  if(!etc) return;
+  if(!S.nextGrow){ S.nextGrow = nowMs + enemyGrowMs(); return; }
+  if(nowMs < S.nextGrow) return;
+  S.nextGrow = nowMs + enemyGrowMs();
+  const huts=S.enemyBuilds.filter(b=>b.id==='ehut').length;
+  const towers=S.enemyBuilds.filter(b=>b.id==='etower').length;
+  if(huts>=9 && towers>=6) return;
+  const buildTower = (towers < Math.floor(huts/2) && towers<6) || huts>=9;
+  // busca un hueco de hierba cerca del centro enemigo
+  const spots=[];
+  for(let dy=-3;dy<=3;dy++) for(let dx=-3;dx<=3;dx++){
+    const x=etc.x+dx, y=etc.y+dy;
+    if(!inB(x,y) || tiles[idx(x,y)].t!==T_GRASS) continue;
+    if(buildingAt(x,y) || S.enemyBuilds.some(e=>e.x===x&&e.y===y)) continue;
+    spots.push([x,y]);
+  }
+  if(!spots.length) return;
+  const [x,y]=spots[rnd(spots.length)];
+  const boost=1+0.08*(huts+towers);   // cada edificio nuevo llega más fuerte
+  if(buildTower){
+    S.enemyBuilds.push({id:'etower', x, y, hp:Math.round(230*boost), max:Math.round(230*boost), atk:{range:3.8, dps:10+huts}});
+  } else {
+    S.enemyBuilds.push({id:'ehut', x, y, hp:Math.round(130*boost), max:Math.round(130*boost)});
+  }
+  staticDirty=true;
+  if(fog && fog[idx(etc.x,etc.y)]){
+    toast('🏴 El poblado rival está creciendo…');
+    log('🏴 Los vigías informan: el rival levanta nuevos edificios. Cuanto más esperes, más fuerte será.', 'bad');
+  }
+}
+// si asaltas la aldea, salen defensores; si te retiras, reparan los daños
+let lastGarrison=0;
+function maybeGarrison(nowMs){
+  if(S.mode!=='conquista' || !S.enemyBuilds || S.won || S.dead) return;
+  const etc=S.enemyBuilds.find(b=>b.id==='etc');
+  if(!etc) return;
+  const ex=(etc.x+0.5)*TILE_PX, ey=(etc.y+0.5)*TILE_PX;
+  const asaltada = soldiers.some(s=>Math.hypot(s.px-ex, s.py-ey)<7*TILE_PX);
+  if(!asaltada) return;
+  const guards=enemies.filter(e=>e.state==='guard').length;
+  const maxG=Math.min(6, 1+Math.floor(S.enemyBuilds.filter(b=>b.id==='ehut').length/2));
+  if(guards>=maxG || nowMs-lastGarrison<12000) return;
+  lastGarrison=nowMs;
+  const hp=40+22*S.age;
+  enemies.push({
+    px:ex+(Math.random()*16-8), py:ey+(Math.random()*16-8),
+    sx:etc.x, sy:etc.y, hp, maxHp:hp,
+    state:'guard', path:null, pi:0, loot:0, lootRes:null, timer:0,
+  });
+}
+function enemyRepair(dt){
+  if(S.mode!=='conquista' || !S.enemyBuilds) return;
+  for(const eb of S.enemyBuilds){
+    if(eb.hp>=eb.max) continue;
+    const bx=(eb.x+0.5)*TILE_PX, by=(eb.y+0.5)*TILE_PX;
+    const acosada = soldiers.some(s=>Math.hypot(s.px-bx, s.py-by)<6*TILE_PX);
+    if(!acosada) eb.hp=Math.min(eb.max, eb.hp+0.8*dt);
+  }
+}
 function trainUnit(kind, from){
   const u=UNITS[kind];
   if(S.age<u.needAge){ toast(`${u.icon} Requiere la ${AGES[u.needAge].name}.`); return; }
@@ -1589,8 +1653,20 @@ function destroyEnemyBuild(eb){
     toast('💥 ¡Edificio enemigo destruido!');
   }
 }
+function soldierHitBuild(s, u, eb, dt){
+  eb.hp-=u.dps*dt;
+  if(u.range>1.5 && performance.now()-(s.lastShot||0)>400){
+    s.lastShot=performance.now();
+    shots.push({x1:s.px, y1:s.py-10, x2:(eb.x+0.5)*TILE_PX, y2:(eb.y+0.5)*TILE_PX, until:performance.now()+120});
+  }
+  if(eb.hp<=0) destroyEnemyBuild(eb);
+}
 function updateSoldier(s, dt){
   const u=UNITS[s.kind];
+  // los soldados también despejan la niebla al avanzar
+  const stx=Math.floor(s.px/TILE_PX), sty=Math.floor(s.py/TILE_PX);
+  const skey=stx+','+sty;
+  if(s.lastKey!==skey){ s.lastKey=skey; reveal(stx, sty, 3); }
   // caza asignada (lobo): persigue hasta abatirlo
   if(s.prey){
     if(!animals.includes(s.prey)){ s.prey=null; }
@@ -1615,7 +1691,7 @@ function updateSoldier(s, dt){
     const d=Math.hypot(e.px-s.px, e.py-s.py);
     if(d<td){ td=d; tgt=e; }
   }
-  const aggro=(S.stance==='attack'?3.5:5.0)*TILE_PX;
+  const aggro=(S.stance==='home'?5.0:3.5)*TILE_PX;
   if(tgt && td<=aggro){
     if(td>u.range*TILE_PX){
       moveUnit(s, Math.floor(tgt.px/TILE_PX), Math.floor(tgt.py/TILE_PX), dt);
@@ -1629,6 +1705,23 @@ function updateSoldier(s, dt){
     }
     return;
   }
+  // orden de posición: marcha al punto marcado y lo mantiene
+  if(S.stance==='rally' && S.rally){
+    // si hay un edificio enemigo pegado a la posición, lo ataca
+    if(S.enemyBuilds && S.enemyBuilds.length){
+      const eb2=nearestEnemyBuild(s.px, s.py);
+      const dd=Math.hypot((eb2.x+0.5)*TILE_PX-s.px, (eb2.y+0.5)*TILE_PX-s.py);
+      if(dd<=Math.max(u.range+0.5, 2.5)*TILE_PX){
+        if(dd>Math.max(u.range,0.9)*TILE_PX) moveUnit(s, eb2.x, eb2.y, dt);
+        else soldierHitBuild(s, u, eb2, dt);
+        return;
+      }
+    }
+    const rx=(S.rally.x+0.5)*TILE_PX, ry=(S.rally.y+0.5)*TILE_PX;
+    if(Math.hypot(rx-s.px, ry-s.py)>1.4*TILE_PX) moveUnit(s, S.rally.x, S.rally.y, dt);
+    else if(!enemies.length && s.hp<u.hp) s.hp=Math.min(u.hp, s.hp+1*dt);   // cura lenta en posición
+    return;
+  }
   if(S.stance==='attack' && S.enemyBuilds && S.enemyBuilds.length){
     // si el jugador marcó un objetivo concreto, todos van a por él
     let eb=null;
@@ -1637,18 +1730,9 @@ function updateSoldier(s, dt){
       if(!eb) S.atkFocus=null;   // ya destruido: vuelve al más cercano
     }
     if(!eb) eb=nearestEnemyBuild(s.px, s.py);
-    const ebx=(eb.x+0.5)*TILE_PX, eby=(eb.y+0.5)*TILE_PX;
-    const d=Math.hypot(ebx-s.px, eby-s.py);
-    if(d>Math.max(u.range,0.9)*TILE_PX){
-      moveUnit(s, eb.x, eb.y, dt);
-    } else {
-      eb.hp-=u.dps*dt;
-      if(u.range>1.5 && performance.now()-(s.lastShot||0)>400){
-        s.lastShot=performance.now();
-        shots.push({x1:s.px, y1:s.py-10, x2:ebx, y2:eby, until:performance.now()+120});
-      }
-      if(eb.hp<=0) destroyEnemyBuild(eb);
-    }
+    const d=Math.hypot((eb.x+0.5)*TILE_PX-s.px, (eb.y+0.5)*TILE_PX-s.py);
+    if(d>Math.max(u.range,0.9)*TILE_PX) moveUnit(s, eb.x, eb.y, dt);
+    else soldierHitBuild(s, u, eb, dt);
     return;
   }
   // en casa: mantiene posición cerca del centro urbano y se cura poco a poco
@@ -1760,7 +1844,11 @@ function startRaid(){
   let n = 1 + S.age;
   if(S.diff==='facil') n = Math.max(1, n-1);
   if(S.diff==='dificil') n += 1;
-  if(S.mode==='conquista') n += Math.min(4, Math.floor(S.stats.time/300));   // crece con el tiempo
+  if(S.mode==='conquista'){
+    // la fuerza de sus incursiones depende de lo que haya crecido su poblado
+    const huts=(S.enemyBuilds||[]).filter(b=>b.id==='ehut').length;
+    n += Math.min(5, Math.max(0, huts-2));
+  }
   spawnEnemies(n, 40 + 22*S.age);
   log(`👺 ¡${n} invasores atacan tu ciudad!`, 'bad');
   toast(`👺 ¡${n} invasores! Van a por tu centro urbano.`);
@@ -1885,6 +1973,25 @@ function updateEnemy(e, dt){
       if(stepPath(e,dt,ENEMY_SPEED * (S.biome==='tundra'?0.9:1))) removeEnemy(e,true);
       break;
     }
+    case 'guard': {
+      // defensor del poblado rival: persigue a los soldados que asalten la aldea
+      let s=null, sd=1e9;
+      for(const x of soldiers){
+        const d=Math.hypot(x.px-e.px, x.py-e.py);
+        if(d<sd){ sd=d; s=x; }
+      }
+      if(s && sd<=7*TILE_PX && sd>1.1*TILE_PX){
+        e.gr=(e.gr||0)-dt;
+        if(e.gr<=0 || !e.path || e.pi>=e.path.length){
+          e.gr=1;
+          const p=findPath(Math.floor(e.px/TILE_PX), Math.floor(e.py/TILE_PX),
+                           Math.floor(s.px/TILE_PX), Math.floor(s.py/TILE_PX));
+          if(p){ e.path=p; e.pi=0; }
+        }
+        stepPath(e, dt, ENEMY_SPEED * (S.biome==='tundra'?0.9:1));
+      }
+      break;
+    }
   }
 }
 function updateDefenses(dt){
@@ -1971,6 +2078,8 @@ function load(){
     S.stats.g = Object.assign({comida:0,madera:0,piedra:0,oro:0}, S.stats.g||{});
     // tregua tras cargar: la siguiente incursión no llega de inmediato
     if(S.age>=1) S.nextRaid = Math.max(S.nextRaid||0, Date.now()+90000);
+    if(S.mode==='conquista') S.nextGrow = Math.max(S.nextGrow||0, Date.now()+45000);
+    if(S.stance==='rally' && !S.rally) S.stance='home';
     spawnVillagers();
     spawnSoldiers();
     return true;
@@ -2414,6 +2523,17 @@ function draw(){
   }
   ctx2d.textAlign='center'; ctx2d.textBaseline='middle';
 
+  // banderín de posición de las tropas
+  if(S.stance==='rally' && S.rally){
+    const fx=(S.rally.x+0.5)*TILE_PX, fy=(S.rally.y+0.5)*TILE_PX;
+    const wave=Math.sin(performance.now()/250)*2;
+    ctx2d.strokeStyle='#e8c06a'; ctx2d.lineWidth=2.5;
+    ctx2d.beginPath(); ctx2d.moveTo(fx, fy+10); ctx2d.lineTo(fx, fy-16); ctx2d.stroke();
+    ctx2d.fillStyle='#c94f3f';
+    ctx2d.beginPath();
+    ctx2d.moveTo(fx, fy-16); ctx2d.lineTo(fx+14, fy-11+wave); ctx2d.lineTo(fx, fy-6);
+    ctx2d.closePath(); ctx2d.fill();
+  }
   // selección
   if(selected){
     const pulse=0.6+0.4*Math.sin(performance.now()/300);
@@ -2776,11 +2896,17 @@ document.getElementById('raid-flag').onclick=()=>{
   clampCam();
 };
 document.getElementById('army-flag').onclick=()=>{
-  S.stance = S.stance==='attack' ? 'home' : 'attack';
-  if(S.stance==='attack'){
+  if(S.stance!=='home'){
+    S.stance='home'; S.rally=null; S.atkFocus=null;
+    toast('🛡️ Tu ejército vuelve a defender la ciudad.');
+  } else if(S.enemyBuilds && S.enemyBuilds.length){
+    S.stance='attack';
     toast('🗡️ ¡Tu ejército marcha hacia el enemigo!');
     SFX.horn();
-  } else { S.atkFocus=null; toast('🛡️ Tu ejército vuelve a defender la ciudad.'); }
+  } else {
+    toast('🚩 Toca cualquier punto del mapa para enviar allí a tus tropas.');
+    return;
+  }
   for(const s of soldiers) s.path=null;
   updateHUD();
 };
@@ -2847,7 +2973,23 @@ function handleTap(tx,ty){
   }
   const c=tiles[idx(tx,ty)];
   if(RES_OF_T[c.t] && c.amt>0){ selected={x:tx,y:ty}; openCtxNode(tx,ty); return; }
+  if(soldiers.length && c.t!==T_WATER){
+    selected={x:tx,y:ty};
+    ctxState={kind:'ground', x:tx, y:ty};
+    refreshCtx();
+    return;
+  }
   selected=null; closeCtx();
+}
+function rallyTo(x,y){
+  if(!soldiers.length){ toast('⚔️ No tienes soldados: entrénalos en el cuartel.'); return; }
+  S.rally={x,y};
+  S.stance='rally';
+  S.atkFocus=null;
+  for(const s of soldiers) s.path=null;
+  SFX.horn();
+  toast('🚩 Tus tropas marchan a la posición.');
+  closeCtx(); updateHUD();
 }
 function exploreTo(x,y){
   const v=villagers.find(v=>v.job===null && (v.state==='idle'||v.state==='home'));
@@ -2883,10 +3025,36 @@ function refreshCtx(){
       <div class="c-desc">Nadie sabe qué hay ahí. Envía un aldeano libre a descubrirlo — puede que encuentre tesoros…</div>
       <div class="c-actions">
         <button id="ctx-explore" ${libres<1?'disabled':''}>🔭 Explorar (${libres} libre${libres===1?'':'s'})</button>
+        ${soldiers.length?'<button id="ctx-rally">🚩 Mover tropas aquí</button>':''}
       </div>`;
     ctxEl.querySelector('.c-close').onclick=closeCtx;
     const eb=ctxEl.querySelector('#ctx-explore');
     if(eb) eb.onclick=()=>exploreTo(ctxState.x, ctxState.y);
+    const rb2=ctxEl.querySelector('#ctx-rally');
+    if(rb2) rb2.onclick=()=>rallyTo(ctxState.x, ctxState.y);
+    return;
+  }
+  if(ctxState.kind==='ground'){
+    ctxEl.innerHTML=`
+      <div class="c-head">
+        <span class="c-icon">🚩</span>
+        <span class="c-title">Posición</span>
+        <button class="c-close">✕</button>
+      </div>
+      <div class="c-desc">${soldiers.length===1?'Tu soldado marchará aquí y mantendrá':`Tus ${soldiers.length} soldados marcharán aquí y mantendrán`} la posición (atacarán a los enemigos que se acerquen).</div>
+      <div class="c-actions">
+        <button id="ctx-rally">🚩 Mover tropas aquí</button>
+        ${S.stance!=='home'?'<button id="ctx-rhome">🛡️ Volver a casa</button>':''}
+      </div>`;
+    ctxEl.querySelector('.c-close').onclick=closeCtx;
+    ctxEl.querySelector('#ctx-rally').onclick=()=>rallyTo(ctxState.x, ctxState.y);
+    const rh=ctxEl.querySelector('#ctx-rhome');
+    if(rh) rh.onclick=()=>{
+      S.stance='home'; S.rally=null; S.atkFocus=null;
+      for(const s of soldiers) s.path=null;
+      toast('🛡️ Tus tropas vuelven a defender la ciudad.');
+      closeCtx(); updateHUD();
+    };
     return;
   }
   if(ctxState.kind==='animal'){
@@ -3251,7 +3419,7 @@ function updateHUD(){
   const af=document.getElementById('army-flag');
   if(soldiers.length){
     af.style.display='block';
-    af.textContent=`⚔️ ${soldiers.length} · ${S.stance==='attack'?'🗡️ Atacando':'🛡️ Defendiendo'} (toca para cambiar)`;
+    af.textContent=`⚔️ ${soldiers.length} · ${S.stance==='attack'?'🗡️ Atacando':S.stance==='rally'?'🚩 En posición':'🛡️ Defendiendo'} (toca para cambiar)`;
   } else af.style.display='none';
   // aldeanos sin tarea
   const idf=document.getElementById('idle-flag');
@@ -3303,6 +3471,7 @@ function simTick(){
     if(S.nextRaid) S.nextRaid-=ms;
     if(raidPending) raidPending-=ms;
     if(S.nextWave) S.nextWave-=ms;
+    if(S.nextGrow) S.nextGrow-=ms;
     lastRegrow-=ms;
   }
   if(!S.won && !S.dead){
@@ -3311,6 +3480,9 @@ function simTick(){
     for(const a of [...animals]) updateAnimal(a, dt);
     for(const s of [...soldiers]) updateSoldier(s, dt);
     updateEnemyTowers(dt);
+    maybeEnemyGrow(Date.now());
+    maybeGarrison(Date.now());
+    enemyRepair(dt);
     updateBirds(dt);
     if(Date.now()-lastAnimalTick>10000){ lastAnimalTick=Date.now(); maintainAnimals(); }
     updateDefenses(dt);
