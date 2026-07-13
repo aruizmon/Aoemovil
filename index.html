@@ -783,8 +783,30 @@ function collectTreasure(x,y){
   log(`✨ Tesoro: ${tt.name} (+${RES_META[tt.res].icon}${tt.amt}).`, 'good');
 }
 
-/* ---------------- Estado ---------------- */
-const SAVE_KEY = 'imperios-map-v2';
+/* ---------------- Estado y ranuras de guardado ----------------
+   3 partidas independientes. La ranura 1 usa la clave histórica, así
+   las partidas guardadas antes de existir las ranuras no se pierden. */
+const SAVE_BASE = 'imperios-map-v2';
+const N_SLOTS = 3;
+let SLOT = parseInt(localStorage.getItem('imperios-slot'), 10) || 1;
+if(SLOT<1 || SLOT>N_SLOTS) SLOT = 1;
+const slotKey = n => n===1 ? SAVE_BASE : SAVE_BASE+'-s'+n;
+const SAVE_KEY = slotKey(SLOT);
+function slotInfo(n){
+  try{
+    const d=JSON.parse(localStorage.getItem(slotKey(n)));
+    if(!d || !d.S) return null;
+    return {mode:d.S.mode||'clasico', age:d.S.age||0, time:(d.S.stats&&d.S.stats.time)||0,
+            size:d.S.mapSize||'normal', won:!!d.S.won};
+  }catch(e){ return null; }
+}
+function switchSlot(n){
+  if(n===SLOT) return;
+  save();                                      // guarda la partida actual en su ranura
+  try{ localStorage.setItem('imperios-slot', String(n)); }catch(e){}
+  noSave=true;                                 // que beforeunload no pise nada
+  location.reload();
+}
 let S = null;
 let tiles = null;
 let villagers = [];               // {job, px, py, state, carry, path, pi, target, retry}
@@ -3344,6 +3366,22 @@ function refreshSheet(){
       <div id="log-list" style="max-height:150px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin-bottom:10px">
         ${logMsgs.map(l=>`<p class="${l.cls}">${l.msg}</p>`).join('') || '<p>Sin novedades.</p>'}
       </div>
+      <div style="margin:12px 0 4px;font-weight:700;color:var(--gold)">🗂️ Ranuras de partida</div>
+      ${[1,2,3].map(n=>{
+        const inf=slotInfo(n), act=n===SLOT;
+        const desc = act ? 'La partida que estás jugando ahora'
+          : inf ? `${MODES[inf.mode].icon} ${MODES[inf.mode].name} · ${AGES[inf.age].icon} ${AGES[inf.age].name} · ⏱️ ${fmtTime(inf.time)}${inf.won?' · 🏆':''}`
+          : 'Vacía — empieza aquí otra partida sin perder esta';
+        return `<div class="item">
+          <span class="i-icon">${act?'▶️':inf?'💾':'▫️'}</span>
+          <div class="i-info">
+            <div class="i-name">Ranura ${n}${act?' <span class="i-count">· activa</span>':''}</div>
+            <div class="i-desc">${desc}</div>
+          </div>
+          <button data-slot="${n}" ${act?'disabled':''}>${act?'✓':inf?'Jugar':'Nueva'}</button>
+        </div>`;
+      }).join('')}
+      <div class="sheet-note">Cada ranura es una partida independiente. Al cambiar, la actual se guarda sola.</div>
       <div style="display:flex;gap:8px">
         <button id="sh-save" style="flex:1;padding:10px">💾 Guardar</button>
         <button id="sh-reset" style="flex:1;padding:10px;color:var(--red)">🔥 Reiniciar</button>
@@ -3356,6 +3394,7 @@ function refreshSheet(){
       ${matchMedia('(pointer:fine)').matches ? `<div class="sheet-note">⌨️ <b style="color:var(--gold)">Atajos</b>: <b>B</b> construir · <b>T</b> tecnología · <b>M</b> mercado · <b>A</b> aldeanos · <b>E</b> edad · <b>G</b> este panel · <b>R</b> reclutar · <b>F</b> velocidad x1/x2/x3 · <b>Q</b> repetir último edificio · <b>Shift</b>+clic colocar en cadena · <b>flechas</b> mover cámara · <b>+/−</b> zoom (o asignar aldeanos con un recurso seleccionado) · <b>H</b> o <b>espacio</b> centrar · <b>Esc</b> cerrar</div>`:''}`;
     sheetEl.innerHTML=html;
     sheetEl.querySelector('#sh-sound').onclick=()=>{ S.sound=!S.sound; if(S.sound){ ac(); SFX.good(); } refreshSheet(); };
+    sheetEl.querySelectorAll('[data-slot]').forEach(btn=>btn.onclick=()=>switchSlot(+btn.dataset.slot));
     sheetEl.querySelector('#sh-save').onclick=()=>{ save(); toast('💾 Partida guardada.'); };
     sheetEl.querySelector('#sh-reset').onclick=()=>{
       if(confirm('¿Seguro que quieres empezar de cero? Se borrará todo el progreso.')) hardReset();
@@ -3571,6 +3610,19 @@ function renderMenuStep(step){
     addBtn('🌲', 'Normal', 'Clima templado. Sin bonificaciones.', ()=> { menuStateObj.biome='normal'; pickMode(); });
     addBtn('🏜️', 'Desierto', 'Más oro/piedra. Granjas un 20% más lentas.', ()=> { menuStateObj.biome='desierto'; pickMode(); });
     addBtn('❄️', 'Tundra', 'Abundante madera. Movimiento de tropas un 10% más lento.', ()=> { menuStateObj.biome='tundra'; pickMode(); });
+  }
+
+  // volver al paso anterior
+  if(step!=='mode'){
+    const prev = step==='size' ? 'mode' : step==='diff' ? 'size' : 'diff';
+    const back=document.createElement('button');
+    back.className='mode-card';
+    back.style.opacity='.8';
+    back.innerHTML=`<span class="mc-icon">↩️</span>
+      <span style="flex:1;min-width:0"><span class="mc-name">Volver</span>
+      <div class="mc-desc">Cambiar la elección anterior</div></span>`;
+    back.onclick=()=>renderMenuStep(prev);
+    cards.appendChild(back);
   }
 }
 
